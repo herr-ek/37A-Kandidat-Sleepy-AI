@@ -6,6 +6,8 @@ Bachelor thesis project VT26 for group 37A in Data-IT division at Chalmers.
 
 This project uses Python with a virtual environment to manage dependencies.
 
+**Recommended**: Open the project in VS Code using the workspace file `sleepy.code-workspace` for the best development experience (automatic environment detection, kernel selection, and terminal activation).
+
 ### Prerequisites
 
 - Python 3.12
