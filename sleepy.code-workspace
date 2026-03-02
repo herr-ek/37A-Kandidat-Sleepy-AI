@@ -1,0 +1,15 @@
+{
+  "folders": [
+    {
+      "path": "./",
+    },
+  ],
+  "extensions": {
+    "recommendations": [
+      "ms-python.black-formatter",
+      "ms-python.isort",
+      "ms-python.python",
+      "ms-python.vscode-pylance",
+    ],
+  },
+}
