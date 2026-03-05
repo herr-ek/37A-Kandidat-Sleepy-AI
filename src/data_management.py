@@ -59,6 +59,8 @@ def load_from_mat_and_arousal_to_pandas(file_record) -> pd.DataFrame:
       "is_hypopnea": is_hypopnea_array
   })
 
+  return df
+
 
 def extract_and_save_to_parquet(file_record):
   """
