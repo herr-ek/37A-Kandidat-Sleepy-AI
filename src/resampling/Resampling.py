@@ -1,29 +1,22 @@
 import scipy.io
 import numpy as np
 import os
+from numpy.typing import ArrayLike
 
 
-def find_pre_resampled_rate(record, channel_index=11, current_fs=200):
+def find_pre_resampled_rate(signal: ArrayLike, current_fs: int = 200) -> dict:
     """
     Estimates the original sampling rate of a resampled signal by finding
     the smallest run of consecutive identical values.
 
     Args:
-        record: Record identifier (e.g., "tr03-0146")
-        channel_index: Channel to analyze (default 11 for SaO2)
+        signal: 1D array of signal values
         current_fs: Current sampling rate in Hz (default 200)
 
     Returns:
         dict with estimated original sampling rate and run statistics
     """
-    # Construct path to data folder
-    data_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"
-    )
-    mat_file = os.path.join(data_dir, f"{record}.mat")
-    mat = scipy.io.loadmat(mat_file)
-    vals = mat["val"]
-    signal = vals[channel_index, :]
+    signal = np.asarray(signal).flatten()
 
     # Find where signal values change (consecutive samples differ)
     changes = np.where(np.diff(signal) != 0)[0]
@@ -75,11 +68,7 @@ def find_pre_resampled_rate(record, channel_index=11, current_fs=200):
     }
 
 
-if __name__ == "__main__":
-    # Test with a record
-    record = "tr03-0146"
-    result = find_pre_resampled_rate(record, channel_index=11)
-
+def print_analysis_results(record, result):
     if "error" in result:
         print(f"Error: {result['error']}")
     else:
@@ -99,3 +88,23 @@ if __name__ == "__main__":
         print(
             f"  Estimated original sampling rate (from median): {result['estimated_original_fs_from_median']:.2f} Hz"
         )
+
+
+if __name__ == "__main__":
+    # Load data
+    record = "tr03-0146"
+    channel_index = 11
+
+    # Construct path to data folder
+    data_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data"
+    )
+    mat_file = os.path.join(data_dir, f"{record}.mat")
+    mat = scipy.io.loadmat(mat_file)
+    vals = mat["val"]
+    signal = vals[channel_index, :]
+
+    # Analyze the signal
+    result = find_pre_resampled_rate(signal, current_fs=200)
+
+    print_analysis_results(record, result)
