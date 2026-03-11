@@ -12,4 +12,10 @@
       "ms-python.vscode-pylance",
     ],
   },
+  "settings": {
+    "workbench.editorAssociations": {
+      "*.copilotmd": "vscode.markdown.preview.editor",
+      "file:/**/*.parquet": "jupyter-data-wrangler",
+    },
+  },
 }

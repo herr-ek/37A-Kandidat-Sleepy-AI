@@ -1,6 +1,7 @@
 import scipy.io
 import numpy as np
 import os
+import pandas as pd
 from numpy.typing import ArrayLike
 
 
@@ -88,6 +89,35 @@ def print_analysis_results(record, result):
         print(
             f"  Estimated original sampling rate (from median): {result['estimated_original_fs_from_median']:.2f} Hz"
         )
+
+
+def resample_to_time_resolution(df: pd.DataFrame, target_resolution: float):
+    """
+    Resamples a DataFrame to a specified time resolution.
+
+    Args:
+        df: Input DataFrame with a seconds column.
+        target_resolution: Desired time resolution in seconds (e.g., 0.5 for 500ms = 2Hz).
+            Conversion: target_resolution = 1 / target frequency (Hz)
+    Returns:
+        Resampled DataFrame with the specified time resolution.
+    """
+    # Ensure the seconds column is sorted and has a consistent time step
+    df = df.sort_values(by="time_s").reset_index(drop=True)
+
+    # Create a new time index based on the target resolution
+    start_time = df["time_s"].min()
+    end_time = df["time_s"].max()
+    new_time_index = np.arange(start_time, end_time, target_resolution)
+
+    # Resample the DataFrame using interpolation
+    resampled_df = pd.DataFrame({"time_s": new_time_index})
+
+    for column in df.columns:
+        if column != "time_s":
+            resampled_df[column] = np.interp(new_time_index, df["time_s"], df[column])
+
+    return resampled_df
 
 
 if __name__ == "__main__":

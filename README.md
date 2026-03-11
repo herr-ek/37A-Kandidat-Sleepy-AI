@@ -49,13 +49,55 @@ When you're done working, deactivate the virtual environment:
 deactivate
 ```
 
+### Setup Options
+
+The project provides multiple setup scripts to optimize installation time:
+
+#### Standard Setup (First Time Setup)
+
+```bash
+./setup.sh
+```
+
+- Creates fresh virtual environment
+- Installs all dependencies including Jupyter (slowest, ~5-10 minutes)
+- **Now optimized**: Only recreates venv if you confirm, otherwise just updates packages
+
+#### Fast Setup (Quick Updates)
+
+```bash
+./setup-fast.sh
+```
+
+- Updates existing environment only
+- Only installs missing/outdated packages
+- Takes seconds instead of minutes
+- **Use this** for daily development after initial setup
+
+#### Lightweight Setup (No Jupyter)
+
+```bash
+# For running scripts/CLI only (not notebooks)
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-light.txt
+```
+
+- Skips Jupyter and its many dependencies
+- Much faster (~2-3 minutes)
+- Use if you only need to run Python scripts or the CLI
+
+**Why is setup slow?** Jupyter has 100+ dependencies which take time to download and install. If you don't need notebooks, use the lightweight setup.
+
 ## Dependencies
 
 The project includes the following Python libraries (see `requirements.txt`):
 
 - **Data Processing**: numpy, pandas, scipy
+- **Data Management**: wfdb, pyarrow
 - **Machine Learning**: scikit-learn
 - **Visualization**: matplotlib, seaborn
+- **CLI Interface**: questionary, rich
 - **Development**: jupyter, ipykernel, tqdm
 
 Additional deep learning frameworks (PyTorch, TensorFlow) can be uncommented in `requirements.txt` if needed.
