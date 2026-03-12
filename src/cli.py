@@ -9,12 +9,15 @@ import os
 import sys
 from pathlib import Path
 from typing import List, Optional
+import subprocess
+import re
 
 import questionary
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich import box
+from rich.progress import Progress, SpinnerColumn, TextColumn
 import pandas as pd
 import numpy as np
 
@@ -87,6 +90,7 @@ class SleepDataPipeline:
                 questionary.Choice(
                     "📊 Processed data (load from .parquet files)", value="processed"
                 ),
+                questionary.Choice("⬇️  Download data from PhysioNet", value="download"),
                 questionary.Choice("❌ Exit", value="exit"),
             ],
             style=self._get_style(),
@@ -95,6 +99,11 @@ class SleepDataPipeline:
         if choice == "exit":
             console.print("[yellow]Goodbye![/yellow]")
             sys.exit(0)
+        elif choice == "download":
+            self._download_physionet_data()
+            # After download, let user choose data source again
+            self.choose_data_source()
+            return
 
         self.data_source = choice
         console.print(f"[green]✓[/green] Using {choice} data")
@@ -532,7 +541,7 @@ class SleepDataPipeline:
             metadata_file = parquet_file.with_suffix(".metadata.txt")
             if metadata_file.exists():
                 self._load_metadata(metadata_file)
-        print(df.head())
+
         self.current_dataframe = df
         return df
 
@@ -650,6 +659,250 @@ class SleepDataPipeline:
         ).ask()
 
         return selected
+
+    def _download_physionet_data(self):
+        """Download data from PhysioNet Challenge 2018."""
+        console.print("\n[bold cyan]PhysioNet Data Downloader[/bold cyan]")
+        console.print(
+            "[dim]Source: https://physionet.org/files/challenge-2018/1.0.0/[/dim]"
+        )
+        console.print(
+            "[dim yellow]Note: PhysioNet may limit download speeds to ~1-2 MB/s[/dim yellow]\n"
+        )
+
+        # Check if wget is available
+        try:
+            subprocess.run(
+                ["which", "wget"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError:
+            console.print(
+                "[red]✗ wget is not installed. Please install it first:[/red]"
+            )
+            console.print("  macOS: brew install wget")
+            console.print("  Linux: sudo apt-get install wget")
+            return
+
+        # Download options
+        download_type = questionary.select(
+            "What would you like to download?",
+            choices=[
+                questionary.Choice("📦 Specific training records", value="specific"),
+                questionary.Choice(
+                    "📦 Range of training records",
+                    value="range",
+                ),
+                questionary.Choice(
+                    "📦 All training data (~1.5GB)", value="all_training"
+                ),
+                questionary.Choice("🔙 Back", value="back"),
+            ],
+            style=self._get_style(),
+        ).ask()
+
+        if download_type == "back":
+            return
+        elif download_type == "specific":
+            self._download_specific_records()
+        elif download_type == "range":
+            self._download_range_records()
+        elif download_type == "all_training":
+            self._download_all_training()
+
+    def _download_specific_records(self):
+        """Download specific records by entering record IDs."""
+        console.print("\n[bold]Download Specific Records[/bold]")
+        console.print(
+            "[dim]Enter record IDs (e.g., tr03-0146, tr03-0147) separated by commas[/dim]"
+        )
+
+        record_ids = questionary.text(
+            "Record IDs:",
+            default="tr03-0146",
+        ).ask()
+
+        if not record_ids:
+            return
+
+        # Parse record IDs
+        records = [r.strip() for r in record_ids.split(",")]
+
+        # Download each record
+        for record in records:
+            self._download_single_record(record)
+
+        console.print(
+            f"\n[green]✓[/green] Downloaded {len(records)} record(s) to {RAW_DIR}"
+        )
+
+    def _download_range_records(self):
+        """Download a range of records."""
+        console.print("\n[bold]Download Range of Records[/bold]")
+        console.print("[dim]Enter start and end record numbers[/dim]")
+
+        start = questionary.text(
+            "Start record (e.g., tr03-0100):", default="tr03-0100"
+        ).ask()
+        end = questionary.text(
+            "End record (e.g., tr03-0110):", default="tr03-0110"
+        ).ask()
+
+        if not start or not end:
+            return
+
+        # Extract numbers from record IDs
+        start_match = re.match(r"(tr\d+-?)(\d+)", start)
+        end_match = re.match(r"(tr\d+-?)(\d+)", end)
+
+        if not start_match or not end_match:
+            console.print("[red]✗ Invalid record format[/red]")
+            return
+
+        prefix = start_match.group(1)
+        start_num = int(start_match.group(2))
+        end_num = int(end_match.group(2))
+
+        if start_num > end_num:
+            console.print("[red]✗ Start record must be less than end record[/red]")
+            return
+
+        # Download records in range
+        records = []
+        for num in range(start_num, end_num + 1):
+            record = f"{prefix}{num:04d}"
+            records.append(record)
+
+        console.print(f"\n[bold]Downloading {len(records)} records...[/bold]")
+
+        success_count = 0
+        for record in records:
+            if self._download_single_record(record, show_progress=False):
+                success_count += 1
+
+        console.print(
+            f"\n[green]✓[/green] Successfully downloaded {success_count}/{len(records)} records to {RAW_DIR}"
+        )
+
+    def _download_all_training(self):
+        """Download all training data using wget recursive."""
+        console.print("\n[yellow]⚠ This will download ~1.5GB of data[/yellow]")
+
+        confirm = questionary.confirm("Continue with download?", default=False).ask()
+
+        if not confirm:
+            return
+
+        console.print("\n[bold cyan]Downloading all training data...[/bold cyan]")
+
+        # Create data directory
+        RAW_DIR.mkdir(parents=True, exist_ok=True)
+
+        # Download using wget
+        base_url = "https://physionet.org/files/challenge-2018/1.0.0/training/"
+
+        cmd = [
+            "wget",
+            "-r",  # recursive
+            "-N",  # timestamping
+            "-c",  # continue
+            "-np",  # no parent
+            "-nH",  # no host directories
+            "--cut-dirs=4",  # cut directory depth
+            "-P",
+            str(RAW_DIR),  # output directory
+            "-A",
+            "*.mat,*.arousal,*.hea",  # accept only these file types
+            base_url,
+        ]
+
+        try:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console,
+            ) as progress:
+                progress.add_task(description="Downloading...", total=None)
+                result = subprocess.run(
+                    cmd,
+                    cwd=str(RAW_DIR.parent),
+                    capture_output=False,
+                )
+
+            if result.returncode == 0:
+                console.print(f"\n[green]✓[/green] Download completed to {RAW_DIR}")
+            else:
+                console.print(f"\n[red]✗[/red] Download failed")
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]✗ Download cancelled[/yellow]")
+        except Exception as e:
+            console.print(f"\n[red]✗ Error during download: {str(e)}[/red]")
+
+    def _download_single_record(self, record: str, show_progress: bool = True) -> bool:
+        """
+        Download a single record from PhysioNet.
+
+        Args:
+            record: Record ID (e.g., "tr03-0146")
+            show_progress: Whether to show progress messages
+
+        Returns:
+            True if download successful, False otherwise
+        """
+        base_url = "https://physionet.org/files/challenge-2018/1.0.0/training/"
+
+        # Create record directory
+        record_dir = RAW_DIR / record
+        record_dir.mkdir(parents=True, exist_ok=True)
+
+        # Files to download for each record
+        extensions = [".mat", ".arousal", ".hea"]
+
+        if show_progress:
+            console.print(f"\n[bold]Downloading {record}...[/bold]")
+
+        success = True
+        for ext in extensions:
+            url = f"{base_url}{record}/{record}{ext}"
+            output_file = record_dir / f"{record}{ext}"
+
+            # Skip if file already exists
+            if output_file.exists():
+                if show_progress:
+                    console.print(f"  [dim]✓ {record}{ext} (already exists)[/dim]")
+                continue
+
+            try:
+                # Use wget with progress bar for better feedback during slow downloads
+                cmd = ["wget", "--progress=bar:force", "-O", str(output_file), url]
+                result = subprocess.run(
+                    cmd, capture_output=False, timeout=900
+                )  # 15 minutes timeout
+
+                if result.returncode == 0 and output_file.exists():
+                    if show_progress:
+                        file_size = output_file.stat().st_size
+                        size_str = self._format_file_size(file_size)
+                        console.print(f"  [green]✓[/green] {record}{ext} ({size_str})")
+                else:
+                    if show_progress:
+                        console.print(f"  [red]✗[/red] {record}{ext} (failed)")
+                    success = False
+            except subprocess.TimeoutExpired:
+                if show_progress:
+                    console.print(
+                        f"  [red]✗[/red] {record}{ext} (timeout after 5 minutes)"
+                    )
+                success = False
+            except Exception as e:
+                if show_progress:
+                    console.print(f"  [red]✗[/red] {record}{ext} ({str(e)})")
+                success = False
+
+        return success
 
     @staticmethod
     def _format_file_size(size_bytes: int) -> str:
