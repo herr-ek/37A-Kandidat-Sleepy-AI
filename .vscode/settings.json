@@ -1,7 +1,9 @@
 {
   "cSpell.language": "en,sv-SE",
   "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {},
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "always"
+  },
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
   "python-envs.workspaceSearchPaths": [".venv"],
   "python.terminal.activateEnvironment": true,
