@@ -89,12 +89,15 @@ class SleepDataPipeline:
                     "📁 Raw data (load from .mat + .arousal files)", value="raw"
                 ),
                 questionary.Choice(
-                    "Multiple raw records (batch process)", value="raw_batch"
+                    "📂 Multiple raw records (batch process)", value="raw_batch"
                 ),
                 questionary.Choice(
                     "📊 Processed data (load from .parquet files)", value="processed"
                 ),
-                questionary.Choice("⬇️  Download data from PhysioNet", value="download"),
+                questionary.Choice(
+                    "⬇️  Download data from PhysioNet (OBS. download speed capped to ~1.5 MB/s)",
+                    value="download",
+                ),
                 questionary.Choice("❌ Exit", value="exit"),
             ],
             style=self._get_style(),
