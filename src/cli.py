@@ -455,7 +455,7 @@ class SleepDataPipeline:
             console.print("[red]✗ No SaO2 signal found in data[/red]")
             return
 
-        signal = df["sao2_percent"].values
+        signal = df["sao2_percent"].to_numpy(dtype=float, na_value=np.nan)
         report = rs.find_pre_resampled_rate(signal, current_fs=200)
         rs.print_analysis_results(self.selected_records[0], report)
 
@@ -720,11 +720,11 @@ class SleepDataPipeline:
         except Exception as e:
             console.print(f"[red]✗ Failed to save features: {str(e)}[/red]")
 
-    def _load_data(self, record: str = None) -> pd.DataFrame:
+    def _load_data(self, alt_record: Optional[str] = None) -> pd.DataFrame:
         """Load data based on current data source and selected record.
 
         Args:
-            record: Optional specific record to load (used for batch mode)
+            alt_record: Optional specific record to load (used for batch mode)
 
         Returns:
             Loaded DataFrame
@@ -732,7 +732,7 @@ class SleepDataPipeline:
         if self.current_dataframe is not None:
             return self.current_dataframe
 
-        record = self.selected_records[0] if record is None else record
+        record = self.selected_records[0] if alt_record is None else alt_record
 
         if self.data_source == "raw":
 
