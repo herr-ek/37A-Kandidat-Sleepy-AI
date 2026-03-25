@@ -25,6 +25,7 @@ from rich.table import Table
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import Data_management as dm
+import Feature_extraction as fe
 import Plotting as pl
 import Preprocessing as pp
 import Resampling as rs
@@ -45,6 +46,7 @@ class SleepDataPipeline:
         self.mode = None
         self.selected_records = []
         self.current_dataframe = None
+        self.current_features = None
         self.applied_operations = []  # Track what's been done to the dataframe
 
     def run(self):
@@ -241,6 +243,9 @@ class SleepDataPipeline:
                     "🔄 Resample signal to different time resolution",
                     value="resample_signal",
                 ),
+                questionary.Choice(
+                    "Extract features and save to parquet", value="extract_features"
+                ),
                 # Data management actions
                 questionary.Choice(
                     "💾 Save current dataframe to parquet", value="save_dataframe"
@@ -274,6 +279,9 @@ class SleepDataPipeline:
                 self._resample_signal()
             elif action == "resample_analysis":
                 self._resample_analysis()
+
+            elif action == "extract_features":
+                self._extract_and_save_features()
             elif action == "save_dataframe":
                 self._save_dataframe()
             elif action == "export_parquet":
@@ -465,6 +473,33 @@ class SleepDataPipeline:
         )
         console.print(resampled_df.head().to_string())
 
+    def _extract_and_save_features(self):
+        """Extract features from the signal and save to a new parquet file."""
+        console.print("\n[bold cyan]Extracting features...[/bold cyan]")
+
+        df = self._load_data()
+
+        if "time_s" not in df.columns or "sao2_percent" not in df.columns:
+            console.print(
+                "[red]✗ Required columns 'time_s' and 'sao2_percent' not found[/red]"
+            )
+            return
+
+        features_df = fe.extract_features(df)
+        self.current_features = features_df
+
+        console.print(f"[green]✓[/green] Features extracted")
+        console.print(features_df.head().to_string())
+
+        # Ask if user wants to save
+        if self.current_features is not None:
+            save = questionary.confirm(
+                "Save extracted features to parquet?", default=True
+            ).ask()
+
+            if save:
+                self._save_features()
+
     def _export_to_parquet(self):
         """Export raw data to parquet format."""
         if self.data_source != "raw":
@@ -596,12 +631,95 @@ class SleepDataPipeline:
         except Exception as e:
             console.print(f"[red]✗ Failed to save: {str(e)}[/red]")
 
-    def _load_data(self) -> pd.DataFrame:
-        """Load data based on current data source and selected record."""
+    def _save_features(self):
+        """Save the extracted features to a parquet file."""
+        if self.current_features is None:
+            console.print("[yellow]⚠ No features extracted yet[/yellow]")
+            return
+
+        console.print("\n[bold cyan]Saving features...[/bold cyan]")
+
+        # Get filename
+        record = self.selected_records[0]
+        base_record = record.split("/")[-1] if "/" in record else record
+        default_filename = f"{base_record}_features.parquet"
+
+        filename = questionary.text(
+            "Enter filename (without path):", default=default_filename
+        ).ask()
+
+        if not filename:
+            console.print("[yellow]✗ Save cancelled[/yellow]")
+            return
+
+        # Ensure .parquet extension
+        if not filename.endswith(".parquet"):
+            filename += ".parquet"
+
+        # Choose where to save
+        save_location = questionary.select(
+            "Where do you want to save?",
+            choices=[
+                questionary.Choice(
+                    f"📂 Processed folder (data/processed/{record}/)", value="processed"
+                ),
+                questionary.Choice("📁 Custom path", value="custom"),
+            ],
+            style=self._get_style(),
+        ).ask()
+
+        if save_location == "processed":
+            base_record = record.split("/")[0] if "/" in record else record
+            output_dir = PROCESSED_DIR / base_record
+            output_dir.mkdir(parents=True, exist_ok=True)
+            output_file = output_dir / filename
+        else:
+            custom_path = questionary.path(
+                "Enter full path to save location:", default=str(DATA_DIR)
+            ).ask()
+
+            if not custom_path:
+                console.print("[yellow]✗ Save cancelled[/yellow]")
+                return
+
+            output_file = Path(custom_path) / filename
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Save the features
+        try:
+            self.current_features.to_parquet(output_file, index=False)
+
+            # Create metadata file with operations log
+            # metadata_file = output_file.with_suffix(".metadata.txt")
+            # with open(metadata_file, "w") as f:
+            #     f.write(f"Record: {record}\n")
+            #     f.write(f"Source: {self.data_source}\n")
+            #     f.write(f"Original file: {self.selected_records[0]}\n")
+            #     f.write(f"Operations applied:\n")
+            #     for i, op in enumerate(self.applied_operations, 1):
+            #         f.write(f"  {i}. {op}\n")
+            #     f.write(f"\nFeatures shape: {self.current_features.shape}\n")
+            #     f.write(f"Columns: {', '.join(self.current_features.columns)}\n")
+
+            console.print(f"[green]✓[/green] Features saved to {output_file}")
+            # console.print(f"[green]✓[/green] Metadata saved to {metadata_file}")
+
+        except Exception as e:
+            console.print(f"[red]✗ Failed to save features: {str(e)}[/red]")
+
+    def _load_data(self, record: str = None) -> pd.DataFrame:
+        """Load data based on current data source and selected record.
+
+        Args:
+            record: Optional specific record to load (used for batch mode)
+
+        Returns:
+            Loaded DataFrame
+        """
         if self.current_dataframe is not None:
             return self.current_dataframe
 
-        record = self.selected_records[0]
+        record = self.selected_records[0] if record is None else record
 
         if self.data_source == "raw":
             record_path = RAW_DIR / record
@@ -995,7 +1113,8 @@ class SleepDataPipeline:
             console.print(f"\n[bold]Processing {record}...[/bold]")
             try:
                 # Load data
-                df = self._load_data()
+                self.current_dataframe = None  # Clear current dataframe to force reload
+                df = self._load_data(record)
 
                 # Apply default processing pipeline
                 # df = pp.preproccess_signal(df["sao2_percent"].to_numpy())
@@ -1029,7 +1148,8 @@ class SleepDataPipeline:
             console.print(f"\n[bold]Resampling {record}...[/bold]")
             try:
                 # Load data
-                df = self._load_data()
+                self.current_dataframe = None  # Clear current dataframe to force reload
+                df = self._load_data(record)
 
                 # Resample signal
                 resampled_df = rs.resample_to_time_resolution(df, target_resolution)
