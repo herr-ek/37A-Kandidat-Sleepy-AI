@@ -6,28 +6,28 @@ Interactive command-line interface for processing and analyzing sleep apnea data
 """
 
 import os
+import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import List, Optional
-import subprocess
-import re
 
+import numpy as np
+import pandas as pd
 import questionary
+from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
-from rich import box
 from rich.progress import Progress, SpinnerColumn, TextColumn
-import pandas as pd
-import numpy as np
+from rich.table import Table
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import Data_management as dm
+import Plotting as pl
 import Preprocessing as pp
 import Resampling as rs
-import Plotting as pl
 
 console = Console()
 
@@ -42,6 +42,7 @@ class SleepDataPipeline:
 
     def __init__(self):
         self.data_source = None
+        self.mode = None
         self.selected_records = []
         self.current_dataframe = None
         self.applied_operations = []  # Track what's been done to the dataframe
@@ -88,9 +89,15 @@ class SleepDataPipeline:
                     "📁 Raw data (load from .mat + .arousal files)", value="raw"
                 ),
                 questionary.Choice(
+                    "📂 Multiple raw records (batch process)", value="raw_batch"
+                ),
+                questionary.Choice(
                     "📊 Processed data (load from .parquet files)", value="processed"
                 ),
-                questionary.Choice("⬇️  Download data from PhysioNet", value="download"),
+                questionary.Choice(
+                    "⬇️  Download data from PhysioNet (OBS. download speed capped to ~1.5 MB/s)",
+                    value="download",
+                ),
                 questionary.Choice("❌ Exit", value="exit"),
             ],
             style=self._get_style(),
@@ -106,6 +113,10 @@ class SleepDataPipeline:
             return
 
         self.data_source = choice
+        self.mode = "single"
+        if choice == "raw_batch":
+            self.data_source = "raw"
+            self.mode = "batch"
         console.print(f"[green]✓[/green] Using {choice} data")
 
     def select_records(self):
@@ -120,6 +131,22 @@ class SleepDataPipeline:
                 f"[red]✗ No records found in {RAW_DIR if self.data_source == 'raw' else PROCESSED_DIR}[/red]"
             )
             sys.exit(1)
+
+        if self.mode == "batch":
+            # For batch mode, select multiple records with checkbox
+            selected = questionary.checkbox(
+                "Select records to process (use space to select):",
+                choices=records,
+                style=self._get_style(),
+            ).ask()
+
+            if not selected:
+                console.print("[red]✗ No records selected[/red]")
+                sys.exit(1)
+
+            self.selected_records = selected
+            console.print(f"[green]✓[/green] Selected {len(selected)} record(s)")
+            return
 
         # Display available records (directories only)
         table = Table(title="Available Records", box=box.ROUNDED)
@@ -171,36 +198,59 @@ class SleepDataPipeline:
         if self.current_dataframe is not None:
             self._display_dataframe_status()
 
-        actions = [
-            questionary.Choice("📋 Display data as DataFrame", value="display_df"),
-            questionary.Choice("📊 Show data statistics", value="show_stats"),
-            questionary.Choice("📈 Plot signal with annotations", value="plot_signal"),
-            questionary.Choice(
-                "🧹 Preprocess signal (clean artifacts)", value="preprocess"
-            ),
-            questionary.Choice(
-                "🔍 Analyze signal for resampling", value="resample_analysis"
-            ),
-            questionary.Choice(
-                "🔄 Resample signal to different time resolution",
-                value="resample_signal",
-            ),
-            questionary.Choice(
-                "💾 Save current dataframe to parquet", value="save_dataframe"
-            ),
-            questionary.Choice(
-                "📤 Export to parquet (if raw data)", value="export_parquet"
-            ),
-            questionary.Choice("🔄 Select different record", value="change_record"),
-            questionary.Choice("🔙 Back to data source selection", value="restart"),
-            questionary.Choice("❌ Exit", value="exit"),
-        ]
+        if self.mode == "batch":
+            # For batch mode, only allow certain actions
+            batch_actions = [
+                questionary.Choice(
+                    "🔄 Process all selected records with default pipeline",
+                    value="batch_process",
+                ),
+                questionary.Choice("🔙 Back to data source selection", value="restart"),
+                questionary.Choice("❌ Exit", value="exit"),
+            ]
 
-        choice = questionary.select(
-            "What would you like to do?", choices=actions, style=self._get_style()
-        ).ask()
+            choice = questionary.select(
+                "What would you like to do?",
+                choices=batch_actions,
+                style=self._get_style(),
+            ).ask()
 
-        return choice
+            return choice
+        else:
+
+            actions = [
+                questionary.Choice("📋 Display data as DataFrame", value="display_df"),
+                questionary.Choice("📊 Show data statistics", value="show_stats"),
+                questionary.Choice(
+                    "📈 Plot signal with annotations", value="plot_signal"
+                ),
+                questionary.Choice(
+                    "🧹 Preprocess signal (clean artifacts)", value="preprocess"
+                ),
+                questionary.Choice(
+                    "🔍 Analyze signal for resampling", value="resample_analysis"
+                ),
+                questionary.Choice(
+                    "🔄 Resample signal to different time resolution",
+                    value="resample_signal",
+                ),
+                # Data management actions
+                questionary.Choice(
+                    "💾 Save current dataframe to parquet", value="save_dataframe"
+                ),
+                questionary.Choice(
+                    "📤 Export to parquet (if raw data)", value="export_parquet"
+                ),
+                questionary.Choice("🔄 Select different record", value="change_record"),
+                questionary.Choice("🔙 Back to data source selection", value="restart"),
+                questionary.Choice("❌ Exit", value="exit"),
+            ]
+
+            choice = questionary.select(
+                "What would you like to do?", choices=actions, style=self._get_style()
+            ).ask()
+
+            return choice
 
     def execute_action(self, action: str):
         """Execute the selected action."""
@@ -231,6 +281,8 @@ class SleepDataPipeline:
                 self.applied_operations = []
                 self.choose_data_source()
                 self.select_records()
+            elif action == "batch_process":
+                self._batch_process_records()
         except Exception as e:
             console.print(f"[red]✗ Error: {str(e)}[/red]")
 
@@ -324,7 +376,7 @@ class SleepDataPipeline:
             console.print("[red]✗ No SaO2 signal found in data[/red]")
             return
 
-        original_signal = df["sao2_percent"].values
+        original_signal = df["sao2_percent"].to_numpy()
         cleaned_signal = pp.preproccess_signal(original_signal)
 
         df["sao2_percent"] = cleaned_signal
@@ -923,8 +975,35 @@ class SleepDataPipeline:
 
         return success
 
+    def _batch_process_records(self):
+        """Batch process all selected records with default pipeline."""
+        console.print("\n[bold cyan]Batch Processing Records[/bold cyan]")
+        console.print(
+            f"[dim]Processing {len(self.selected_records)} record(s) with default pipeline...[/dim]"
+        )
+
+        for record in self.selected_records:
+            console.print(f"\n[bold]Processing {record}...[/bold]")
+            try:
+                # Load data
+                df = self._load_data()
+
+                # Apply default processing pipeline
+                # df = pp.preproccess_signal(df["sao2_percent"].to_numpy())
+                # df = rs.resample_to_time_resolution(df, 0.5)
+
+                # Save processed data
+                output_dir = PROCESSED_DIR / record
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_file = output_dir / f"{record}.parquet"
+                df.to_parquet(output_file, index=False)
+
+                console.print(f"[green]✓[/green] Processed and saved to {output_file}")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to process {record}: {str(e)}[/red]")
+
     @staticmethod
-    def _format_file_size(size_bytes: int) -> str:
+    def _format_file_size(size_bytes: float) -> str:
         """Format file size in human-readable format."""
         for unit in ["B", "KB", "MB", "GB"]:
             if size_bytes < 1024.0:
