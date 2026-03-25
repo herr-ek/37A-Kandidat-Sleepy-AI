@@ -1,0 +1,52 @@
+import antropy as ant
+import pandas as pd
+
+
+def extract_features(
+    data: pd.DataFrame, windowSize: int = 10, overlap: float = 0.5
+) -> pd.DataFrame:
+    """
+    Extracts features from the SaO2 signal in the given DataFrame.
+    Utilized a sliding window approach to compute features for each segment of the signal.
+
+    Args:
+        data: DataFrame containing 'time_s' and 'sao2_percent' columns.
+        windowSize: The window size for feature extraction. Default is 10.
+        overlap: The proportion of overlap between consecutive windows. Default is 0.5 (50% overlap).
+
+    Returns:
+        DataFrame containing the extracted features.
+            - mean_sao2: Mean of SaO2 values in the window.
+            - std_sao2: Standard deviation of SaO2 values in the window.
+            - skew_sao2: Skewness of SaO2 values in the window.
+            - min_sao2: Minimum SaO2 value in the window.
+            - under_90: Proportion of SaO2 values under 90% in the window.
+            - under_80: Proportion of SaO2 values under 80% in the window.
+            - lempel_ziv: Lempel-Ziv complexity of the SaO2 values in the window.
+    """
+    # Example feature extraction (replace with actual implementation)
+    features = pd.DataFrame()
+
+    stepSize = int(windowSize * (1 - overlap))
+    for i in range(0, len(data) - windowSize + 1, stepSize):
+        window_data = data.iloc[i : i + windowSize]
+        if len(window_data) < windowSize:
+            break  # Skip incomplete windows
+
+        # Extract features
+        features.loc[i, "time_s"] = window_data["time_s"].iloc[-1]
+        features.loc[i, "mean_sao2"] = window_data["sao2_percent"].mean()
+        features.loc[i, "std_sao2"] = window_data["sao2_percent"].std()
+        features.loc[i, "skew_sao2"] = window_data["sao2_percent"].skew()
+        features.loc[i, "min_sao2"] = window_data["sao2_percent"].min()
+        features.loc[i, "under_90"] = (
+            window_data["sao2_percent"] < 90
+        ).sum() / windowSize
+        features.loc[i, "under_80"] = (
+            window_data["sao2_percent"] < 80
+        ).sum() / windowSize
+        features.loc[i, "lempel_ziv"] = ant.lziv_complexity(
+            window_data["sao2_percent"].values
+        )
+
+    return features
