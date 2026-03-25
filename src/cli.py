@@ -95,6 +95,10 @@ class SleepDataPipeline:
                     "📊 Processed data (load from .parquet files)", value="processed"
                 ),
                 questionary.Choice(
+                    "📊 Multiple processed records (batch process)",
+                    value="processed_batch",
+                ),
+                questionary.Choice(
                     "⬇️  Download data from PhysioNet (OBS. download speed capped to ~1.5 MB/s)",
                     value="download",
                 ),
@@ -114,8 +118,8 @@ class SleepDataPipeline:
 
         self.data_source = choice
         self.mode = "single"
-        if choice == "raw_batch":
-            self.data_source = "raw"
+        if choice == "raw_batch" or choice == "processed_batch":
+            self.data_source = "raw" if choice == "raw_batch" else "processed"
             self.mode = "batch"
         console.print(f"[green]✓[/green] Using {choice} data")
 
@@ -205,6 +209,9 @@ class SleepDataPipeline:
                     "🔄 Process all selected records with default pipeline",
                     value="batch_process",
                 ),
+                questionary.Choice(
+                    "Resample all records to target resolution", value="batch_resample"
+                ),
                 questionary.Choice("🔙 Back to data source selection", value="restart"),
                 questionary.Choice("❌ Exit", value="exit"),
             ]
@@ -283,6 +290,8 @@ class SleepDataPipeline:
                 self.select_records()
             elif action == "batch_process":
                 self._batch_process_records()
+            elif action == "batch_resample":
+                self._batch_resample_records()
         except Exception as e:
             console.print(f"[red]✗ Error: {str(e)}[/red]")
 
@@ -1001,6 +1010,39 @@ class SleepDataPipeline:
                 console.print(f"[green]✓[/green] Processed and saved to {output_file}")
             except Exception as e:
                 console.print(f"[red]✗ Failed to process {record}: {str(e)}[/red]")
+
+    def _batch_resample_records(self):
+        """Batch resample all selected records to target resolution."""
+        console.print("\n[bold cyan]Batch Resampling Records[/bold cyan]")
+        console.print(
+            f"[dim]Resampling {len(self.selected_records)} record(s) to target resolution...[/dim]"
+        )
+
+        target_resolution = questionary.text(
+            "Enter target time resolution in seconds (e.g., 0.5 for 500ms):",
+            validate=lambda text: text.replace(".", "", 1).isdigit(),
+        ).ask()
+
+        target_resolution = float(target_resolution)
+
+        for record in self.selected_records:
+            console.print(f"\n[bold]Resampling {record}...[/bold]")
+            try:
+                # Load data
+                df = self._load_data()
+
+                # Resample signal
+                resampled_df = rs.resample_to_time_resolution(df, target_resolution)
+
+                # Save resampled data
+                output_dir = PROCESSED_DIR / record
+                output_dir.mkdir(parents=True, exist_ok=True)
+                output_file = output_dir / f"{record}.parquet"
+                resampled_df.to_parquet(output_file, index=False)
+
+                console.print(f"[green]✓[/green] Resampled and saved to {output_file}")
+            except Exception as e:
+                console.print(f"[red]✗ Failed to resample {record}: {str(e)}[/red]")
 
     @staticmethod
     def _format_file_size(size_bytes: float) -> str:
