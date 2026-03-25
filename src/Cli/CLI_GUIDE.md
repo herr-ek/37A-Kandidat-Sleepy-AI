@@ -25,18 +25,31 @@ pip install -r requirements.txt
 
 ### Running the CLI
 
-From the project root directory:
+**As a standalone script** (from project root):
 
 ```bash
-python src/cli.py
+python src/Cli/cli.py
 ```
 
 Or make it executable and run directly:
 
 ```bash
-chmod +x src/cli.py
-./src/cli.py
+chmod +x src/Cli/cli.py
+./src/Cli/cli.py
 ```
+
+**As an imported module** (e.g., from `main.py` or another script):
+
+```python
+from rich.console import Console
+from src.Cli.cli import SleepDataPipeline
+
+console = Console()
+pipeline = SleepDataPipeline(console)
+pipeline.run()
+```
+
+This allows you to integrate the CLI into your own application or notebook.
 
 ### Workflow
 
@@ -94,17 +107,62 @@ For batch raw mode, you can specify a custom data directory path to load recordi
 ## Directory Structure
 
 ```
+src/
+├── Cli/                          # Modular CLI package
+│   ├── __init__.py               # Package initialization
+│   ├── cli.py                    # Main entry point (orchestrator)
+│   ├── config.py                 # Configuration and constants
+│   ├── utils.py                  # Utility functions
+│   ├── ui.py                     # User interface (menus/prompts)
+│   ├── data_loader.py            # Data loading and file I/O
+│   ├── data_display.py           # Display and visualization
+│   ├── data_processor.py         # Signal processing operations
+│   ├── data_saver.py             # Saving and export functionality
+│   ├── downloader.py             # PhysioNet data downloading
+│   └── batch_processor.py        # Batch processing operations
+├── Data_management/              # Data loading utilities
+├── Feature_extraction/           # ML feature extraction
+├── Plotting/                     # Visualization functions
+├── Preprocessing/                # Signal preprocessing
+├── Resampling/                   # Signal resampling
+└── ...
+
 data/
-├── raw/                   # Raw recordings
-│   └── tr03-0146/         # One folder per recording
+├── raw/                          # Raw recordings
+│   └── tr03-0146/                # One folder per recording
 │       ├── tr03-0146.mat
 │       ├── tr03-0146.arousal
 │       ├── tr03-0146.hea
 │       └── tr03-0146-arousal.mat
-└── processed/             # Processed data
-    └── tr03-0146/         # One folder per recording
+└── processed/                    # Processed data
+    └── tr03-0146/                # One folder per recording
         └── tr03-0146.parquet
 ```
+
+## Architecture
+
+The CLI has been refactored into a modular, component-based architecture for better maintainability, testability, and reusability:
+
+### Core Components
+
+- **`cli.py`**: Main orchestrator class `SleepDataPipeline` that coordinates all components and manages the workflow
+- **`config.py`**: Centralized configuration (paths, constants, defaults) for easy customization
+- **`utils.py`**: Reusable utility functions (file formatting, styling, directory prompts)
+- **`ui.py`**: `CLI_UI` class handling all user interface menus and prompts with rich styling
+- **`data_loader.py`**: `DataLoader` class managing data loading from raw/processed sources with metadata tracking
+- **`data_display.py`**: `DataDisplay` class for visualization and statistical analysis
+- **`data_processor.py`**: `DataProcessor` class for signal processing operations (preprocess, resample, extract features)
+- **`data_saver.py`**: `DataSaver` class for saving and exporting data with metadata generation
+- **`downloader.py`**: `PhysioNetDownloader` class for fetching data from PhysioNet Challenge 2018
+- **`batch_processor.py`**: `BatchProcessor` class for batch operations on multiple records
+
+### Design Patterns
+
+- **Dependency Injection**: Components receive `console` object for consistent output
+- **Single Responsibility**: Each module handles one specific aspect of the pipeline
+- **Composable**: Modules can be used independently or combined in custom workflows
+- **Dual-Mode Imports**: Supports both relative imports (when run as module) and absolute imports (when run as script)
+- **State Management**: `DataLoader` maintains current dataframe and operation history
 
 ## Features
 
@@ -187,77 +245,104 @@ The CLI can download open-source sleep apnea data from PhysioNet Challenge 2018:
 
 To add a new action to the CLI:
 
-1. **Add the action to the menu** in `choose_action()`:
+1. **Add the action to the menu** in `ui.py` (in the appropriate menu method):
 
 ```python
 questionary.Choice("🆕 Your new action", value="your_action"),
 ```
 
-2. **Handle the action** in `execute_action()`:
+2. **Handle the action** in `cli.py` `execute_action()` method:
 
 ```python
 elif action == "your_action":
-    self._your_action_function()
-```
-
-3. **Implement the function** in the `SleepDataPipeline` class:
-
-```python
-def _your_action_function(self):
-    """Your action description."""
-    console.print("\n[bold cyan]Doing something...[/bold cyan]")
-
-    df = self._load_data()
-
+    df = self.data_loader.load_data(
+        self.data_source, self.selected_records, self.custom_data_dir
+    )
     # Your implementation here
-
-    console.print("[green]✓[/green] Action completed")
+    self.data_loader.current_dataframe = modified_df
+    self.data_loader.applied_operations.append("YourOperation")
 ```
 
-### Adding Multi-Record Support
+### Adding New Processing Steps
 
-The `selected_records` attribute is a list, and batch processing is already supported. To add batch-compatible actions:
+To add a new signal processing operation:
 
-1. Add action to `choose_action()` only in the non-batch section
-2. Or add to batch_actions list for batch-only functionality
-3. Update action functions to handle single records in single mode
-
-Example for single-mode actions:
+1. **Add method to `data_processor.py`** in the `DataProcessor` class:
 
 ```python
-def _your_action(self):
-    """Process the selected record."""
-    record = self.selected_records[0]
-    df = self._load_data()
-    # Process single record...
+def your_operation(self, df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+    """Your operation description."""
+    self.console.print("\n[bold cyan]Processing...[/bold cyan]")
+    
+    modified_df = df.copy()
+    # Your implementation here
+    
+    self.console.print("[green]✓[/green] Processing complete")
+    return modified_df, True  # (dataframe, success)
 ```
 
-Example for batch-compatible actions:
+2. **Use it in `cli.py`**:
 
 ```python
-def _your_batch_action(self):
-    """Process multiple records."""
-    # For batch mode
-    if self.mode == "batch":
-        for record in self.selected_records:
-            df = self._load_data(record)
-            # Process each record...
-    else:
-        df = self._load_data()
-        # Process single record...
+elif action == "your_operation":
+    df = self.data_loader.load_data(...)
+    result_df, success = self.data_processor.your_operation(df)
+    if success:
+        self.data_loader.current_dataframe = result_df
+        self.data_loader.applied_operations.append("YourOperation")
 ```
 
-### Working with DataFrames
+### Using Components Independently
 
-Track applied operations using the `self.applied_operations` list:
+Each component can be used standalone:
 
 ```python
-# After modifying data
-self.current_dataframe = modified_df
-self.applied_operations.append("YourOperation")
+from rich.console import Console
+from src.Cli.data_loader import DataLoader
+from src.Cli.config import RAW_DIR
 
-# Operations show in status when saved
-# Example filename: tr03-0146_preprocessed_resampled_0.5s.parquet
+console = Console()
+loader = DataLoader(console)
+
+df = loader.load_data("raw", ["tr03-0146"])
+print(df.head())
+```
+
+### Adding New Data Sources
+
+Extend `data_loader.py` to support new formats:
+
+```python
+def load_data(
+    self,
+    data_source: str,
+    selected_records: List[str],
+    custom_data_dir: Optional[str] = None,
+    alt_record: Optional[str] = None,
+) -> pd.DataFrame:
+    # Add new source handling
+    if data_source == "your_new_source":
+        df = your_custom_loader(record_path)
+    # ...
+```
+
+### Creating a Custom Pipeline
+
+You can create custom workflows by combining components:
+
+```python
+from rich.console import Console
+from src.Cli.cli import SleepDataPipeline
+from src.Cli.data_processor import DataProcessor
+
+console = Console()
+pipeline = SleepDataPipeline(console)
+
+# Custom workflow
+pipeline.data_loader.load_data("raw", ["tr03-0146"])
+pipeline.data_processor.preprocess_signal(pipeline.data_loader.current_dataframe)
+pipeline.data_processor.resample_signal(pipeline.data_loader.current_dataframe, 0.5)
+pipeline.data_saver.save_dataframe(...)
 ```
 
 ## Data Management
@@ -312,6 +397,10 @@ The CLI shows current dataframe status including:
 7. **Download Strategy**: Download data in ranges (e.g., tr03-0100 to tr03-0200) rather than all at once to avoid long waits.
 
 8. **Error Handling**: If something goes wrong, the CLI will display an error message and let you continue working or try again.
+
+9. **Integration**: Import `SleepDataPipeline` into your own scripts or notebooks for programmatic access to all CLI features.
+
+10. **Modular Components**: Use individual components (`DataLoader`, `DataProcessor`, etc.) in your own workflows for maximum flexibility.
 
 ## Troubleshooting
 
