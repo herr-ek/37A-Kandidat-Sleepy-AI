@@ -48,6 +48,7 @@ class SleepDataPipeline:
         self.current_dataframe = None
         self.current_features = None
         self.applied_operations = []  # Track what's been done to the dataframe
+        self.custom_data_dir = None  # For custom directory in batch mode
 
     def run(self):
         """Main entry point for the CLI."""
@@ -129,13 +130,24 @@ class SleepDataPipeline:
         """Step 2: Select record(s) to process."""
         console.print("\n[bold]Step 2:[/bold] Select recording(s)", style="cyan")
 
+        # For batch raw data, ask if user wants to load from custom directory
+        if self.mode == "batch" and self.data_source == "raw":
+            use_custom = questionary.confirm(
+                "Load from custom directory?", default=False
+            ).ask()
+            if use_custom:
+                self._set_custom_directory()
+
         # Get available record directories
         records = self._get_available_records()
 
         if not records:
-            console.print(
-                f"[red]✗ No records found in {RAW_DIR if self.data_source == 'raw' else PROCESSED_DIR}[/red]"
+            default_location = (
+                self.custom_data_dir
+                if self.custom_data_dir
+                else (RAW_DIR if self.data_source == "raw" else PROCESSED_DIR)
             )
+            console.print(f"[red]✗ No records found in {default_location}[/red]")
             sys.exit(1)
 
         if self.mode == "batch":
@@ -443,7 +455,7 @@ class SleepDataPipeline:
             return
 
         signal = df["sao2_percent"].values
-        report = rs.find_pre_resampled_rate(signal, current_fs=200.0)
+        report = rs.find_pre_resampled_rate(signal, current_fs=200)
         rs.print_analysis_results(self.selected_records[0], report)
 
     def _resample_signal(self):
@@ -722,7 +734,12 @@ class SleepDataPipeline:
         record = self.selected_records[0] if record is None else record
 
         if self.data_source == "raw":
-            record_path = RAW_DIR / record
+
+            record_path = (
+                Path(self.custom_data_dir) / record
+                if self.custom_data_dir
+                else RAW_DIR / record
+            )
             df = dm.load_from_mat_and_arousal_to_pandas(str(record_path / record))
         else:
             # Handle both "record_name" and "record_name/file_name" formats
@@ -783,7 +800,10 @@ class SleepDataPipeline:
 
     def _get_available_records(self) -> List[str]:
         """Get list of available record directories from the selected data source."""
-        if self.data_source == "raw":
+        # Use custom directory if set, otherwise use default
+        if self.custom_data_dir:
+            data_dir = Path(self.custom_data_dir)
+        elif self.data_source == "raw":
             data_dir = RAW_DIR
         else:
             data_dir = PROCESSED_DIR
@@ -1179,6 +1199,50 @@ class SleepDataPipeline:
             return RAW_DIR / record
         else:
             return PROCESSED_DIR / record
+
+    def _set_custom_directory(self):
+        """Prompt user for a custom data directory path."""
+        console.print(
+            "[bold cyan]Enter custom directory path[/bold cyan]",
+        )
+        console.print(
+            "[dim]Examples: /path/to/data/raw, C:\\Users\\Data, ./my_records[/dim]"
+        )
+
+        path_input = questionary.text(
+            "Directory path:",
+            validate=lambda text: bool(text.strip()),
+        ).ask()
+
+        if not path_input:
+            console.print("[yellow]Using default directory[/yellow]")
+            self.custom_data_dir = None
+            return
+
+        custom_path = Path(path_input.strip())
+
+        if not custom_path.exists():
+            console.print(f"[red]✗ Directory does not exist: {custom_path}[/red]")
+            retry = questionary.confirm("Try another path?", default=True).ask()
+            if retry:
+                self._set_custom_directory()
+            else:
+                console.print("[yellow]Using default directory[/yellow]")
+                self.custom_data_dir = None
+            return
+
+        if not custom_path.is_dir():
+            console.print(f"[red]✗ Path is not a directory: {custom_path}[/red]")
+            retry = questionary.confirm("Try another path?", default=True).ask()
+            if retry:
+                self._set_custom_directory()
+            else:
+                console.print("[yellow]Using default directory[/yellow]")
+                self.custom_data_dir = None
+            return
+
+        self.custom_data_dir = str(custom_path)
+        console.print(f"[green]✓[/green] Using custom directory: {custom_path}")
 
     @staticmethod
     def _get_style():
