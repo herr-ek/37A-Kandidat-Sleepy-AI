@@ -224,7 +224,8 @@ class SleepDataPipeline:
                     value="batch_process",
                 ),
                 questionary.Choice(
-                    "Resample all records to target resolution", value="batch_resample"
+                    "⏲️ Resample all records to target resolution",
+                    value="batch_resample",
                 ),
                 questionary.Choice("🔙 Back to data source selection", value="restart"),
                 questionary.Choice("❌ Exit", value="exit"),
@@ -252,11 +253,11 @@ class SleepDataPipeline:
                     "🔍 Analyze signal for resampling", value="resample_analysis"
                 ),
                 questionary.Choice(
-                    "🔄 Resample signal to different time resolution",
+                    "⏲️ Resample signal to different time resolution",
                     value="resample_signal",
                 ),
                 questionary.Choice(
-                    "Extract features and save to parquet", value="extract_features"
+                    "✨ Extract features and save to parquet", value="extract_features"
                 ),
                 # Data management actions
                 questionary.Choice(
@@ -1216,7 +1217,7 @@ class SleepDataPipeline:
     def _set_custom_directory(self):
         """Prompt user for a custom data directory path."""
         console.print(
-            "[bold cyan]Enter custom directory path[/bold cyan]",
+            "[bold cyan]📁 Enter custom directory path[/bold cyan]",
         )
         console.print(
             "[dim]Examples: /path/to/data/raw, C:\\Users\\Data, ./my_records[/dim]"
@@ -1228,7 +1229,7 @@ class SleepDataPipeline:
         ).ask()
 
         if not path_input:
-            console.print("[yellow]Using default directory[/yellow]")
+            console.print("[yellow]↩️ Using default directory[/yellow]")
             self.custom_data_dir = None
             return
 
@@ -1236,26 +1237,27 @@ class SleepDataPipeline:
 
         if not custom_path.exists():
             console.print(f"[red]✗ Directory does not exist: {custom_path}[/red]")
-            retry = questionary.confirm("Try another path?", default=True).ask()
+            retry = questionary.confirm("🔄 Try another path?", default=True).ask()
             if retry:
                 self._set_custom_directory()
             else:
-                console.print("[yellow]Using default directory[/yellow]")
+                console.print("[yellow]↩️ Using default directory[/yellow]")
                 self.custom_data_dir = None
             return
 
         if not custom_path.is_dir():
             console.print(f"[red]✗ Path is not a directory: {custom_path}[/red]")
-            retry = questionary.confirm("Try another path?", default=True).ask()
+            retry = questionary.confirm("🔄 Try another path?", default=True).ask()
             if retry:
                 self._set_custom_directory()
             else:
-                console.print("[yellow]Using default directory[/yellow]")
+                console.print("[yellow]↩️ Using default directory[/yellow]")
                 self.custom_data_dir = None
             return
 
         self.custom_data_dir = str(custom_path)
         console.print(f"[green]✓[/green] Using custom directory: {custom_path}")
+        console.print(f"[dim]📁 Loading records from: {custom_path}[/dim]")
 
     @staticmethod
     def _get_style():
