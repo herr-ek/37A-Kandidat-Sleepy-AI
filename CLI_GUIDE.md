@@ -70,7 +70,7 @@ Select from available actions:
 
 ```
 data/
-├── raw/                    # Raw recordings
+├── raw/                   # Raw recordings
 │   └── tr03-0146/         # One folder per recording
 │       ├── tr03-0146.mat
 │       ├── tr03-0146.arousal

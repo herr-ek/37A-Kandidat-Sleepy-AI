@@ -1174,6 +1174,19 @@ class SleepDataPipeline:
                 # Resample signal
                 resampled_df = rs.resample_to_time_resolution(df, target_resolution)
 
+                # Create metadata file with operations log
+                metadata_file = (
+                    PROCESSED_DIR / record / f"{record}_resampled.metadata.txt"
+                )
+                with open(metadata_file, "w") as f:
+                    f.write(f"Record: {record}\n")
+                    f.write(f"Source: {self.data_source}\n")
+                    f.write(f"Original file: {record}\n")
+                    f.write(f"Operations applied:\n")
+                    f.write(f"  1. Resampled to {target_resolution} seconds\n")
+                    f.write(f"\nResampled DataFrame shape: {resampled_df.shape}\n")
+                    f.write(f"Columns: {', '.join(resampled_df.columns)}\n")
+
                 # Save resampled data
                 output_dir = PROCESSED_DIR / record
                 output_dir.mkdir(parents=True, exist_ok=True)
