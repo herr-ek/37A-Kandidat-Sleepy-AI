@@ -13,10 +13,31 @@ fi
 PYTHON_BIN="$(command -v python3.12)"
 echo "Using interpreter: $PYTHON_BIN ($($PYTHON_BIN --version))"
 
-# Remove old virtual environment if it exists
-if directory=".venv" && [ -d "$directory" ]; then
-    rm -rf "$directory"
-    echo "Removed existing virtual environment at .venv"
+# Check if virtual environment exists and is valid
+if [ -d ".venv" ]; then
+    echo "Virtual environment already exists at .venv"
+    read -p "Do you want to recreate it? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Removing existing virtual environment..."
+        rm -rf .venv
+    else
+        echo "Using existing virtual environment."
+        source .venv/bin/activate
+        
+        # Just upgrade packages
+        echo "Upgrading pip..."
+        pip install --upgrade pip --quiet
+        
+        echo "Installing/upgrading dependencies..."
+        pip install -r requirements.txt --upgrade --quiet
+        
+        echo ""
+        echo "✅ Setup complete!"
+        echo ""
+        echo "Virtual environment is activated. To deactivate, run: deactivate"
+        exit 0
+    fi
 fi
 
 # Create virtual environment
@@ -29,11 +50,12 @@ source .venv/bin/activate
 
 # Upgrade pip
 echo "Upgrading pip..."
-pip install --upgrade pip
+pip install --upgrade pip --quiet
 
-# Install dependencies
+# Install dependencies with optimizations
 echo "Installing dependencies from requirements.txt..."
-pip install -r requirements.txt
+echo "(This may take a few minutes on first install...)"
+pip install -r requirements.txt --prefer-binary
 
 echo ""
 echo "✅ Setup complete!"

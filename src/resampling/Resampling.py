@@ -1,6 +1,7 @@
 import scipy.io
 import numpy as np
 import os
+import pandas as pd
 from numpy.typing import ArrayLike
 
 
@@ -68,6 +69,30 @@ def find_pre_resampled_rate(signal: ArrayLike, current_fs: int = 200) -> dict:
     }
 
 
+def find_intervals_shorter_than(
+    signal: ArrayLike, threshold_samples: int
+) -> list[tuple[int, int]]:
+    """
+    Finds intervals in the signal where values are constant for fewer than threshold_samples.
+
+    Args:
+        signal: 1D array of signal values
+        threshold_samples: Minimum number of consecutive identical samples to be considered a valid run
+
+    Returns:
+        List of tuples representing the start and end indices of intervals shorter than the threshold.
+    """
+    signal = np.asarray(signal).flatten()
+    intervals = []
+    start = 0
+    for i in range(1, len(signal)):
+        if signal[i] != signal[i - 1]:
+            if i - start < threshold_samples:
+                intervals.append((start, i))
+            start = i
+    return intervals
+
+
 def print_analysis_results(record, result):
     if "error" in result:
         print(f"Error: {result['error']}")
@@ -88,6 +113,55 @@ def print_analysis_results(record, result):
         print(
             f"  Estimated original sampling rate (from median): {result['estimated_original_fs_from_median']:.2f} Hz"
         )
+
+
+def trim_signal(
+    signal: ArrayLike, trim_low: float, trim_high: float, fs: int = 200
+) -> np.ndarray:
+    """
+    Trims the start and end of a signal by a specified number of seconds.
+
+    Args:
+        signal: 1D array of signal values
+        trim_low: Number of seconds to trim from the start
+        trim_high: Number of seconds to trim from the end
+        fs: Sampling rate in Hz (default 200)
+
+    Returns:
+        Trimmed signal array.
+    """
+    trim_samples_low = int(trim_low * fs)
+    trim_samples_high = int(trim_high * fs)
+    return signal[trim_samples_low:-trim_samples_high]
+
+
+def resample_to_time_resolution(df: pd.DataFrame, target_resolution: float):
+    """
+    Resamples a DataFrame to a specified time resolution.
+
+    Args:
+        df: Input DataFrame with a seconds column.
+        target_resolution: Desired time resolution in seconds (e.g., 0.5 for 500ms = 2Hz).
+            Conversion: target_resolution = 1 / target frequency (Hz)
+    Returns:
+        Resampled DataFrame with the specified time resolution.
+    """
+    # Ensure the seconds column is sorted and has a consistent time step
+    df = df.sort_values(by="time_s").reset_index(drop=True)
+
+    # Create a new time index based on the target resolution
+    start_time = df["time_s"].min()
+    end_time = df["time_s"].max()
+    new_time_index = np.arange(start_time, end_time, target_resolution)
+
+    # Resample the DataFrame using interpolation
+    resampled_df = pd.DataFrame({"time_s": new_time_index})
+
+    for column in df.columns:
+        if column != "time_s":
+            resampled_df[column] = np.interp(new_time_index, df["time_s"], df[column])
+
+    return resampled_df
 
 
 if __name__ == "__main__":
