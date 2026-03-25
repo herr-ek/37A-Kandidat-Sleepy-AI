@@ -25,9 +25,8 @@ def load_from_mat_and_arousal_to_pandas(file_record) -> pd.DataFrame:
     nans = np.isnan(sao2)
 
     # TODO This should live in pre-processing
-    if np.any(
-        ~nans
-    ):  # This cleans up any NaN and "draws" a line between the last and the next known points.
+    if np.any(~nans):
+        # This cleans up any NaN and "draws" a line between the last and the next known points.
         sao2[nans] = np.interp(np.flatnonzero(nans), np.flatnonzero(~nans), sao2[~nans])
 
     ann = wfdb.rdann(file_record, "arousal")
@@ -41,9 +40,8 @@ def load_from_mat_and_arousal_to_pandas(file_record) -> pd.DataFrame:
     is_apnea_array = np.zeros(sao2.shape[0], dtype=int)
     is_hypopnea_array = np.zeros(sao2.shape[0], dtype=int)
 
-    for i in range(
-        0, event_labels.shape[0], 2
-    ):  # Every 2 rows are start and end of an event
+    for i in range(0, event_labels.shape[0], 2):
+        # Every 2 rows are start and end of an event
         start, end = event_samples[i], event_samples[i + 1]
         if "hypopnea" in event_labels[i]:
             is_hypopnea_array[start:end] = 1

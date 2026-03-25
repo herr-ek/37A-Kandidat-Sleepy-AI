@@ -69,6 +69,30 @@ def find_pre_resampled_rate(signal: ArrayLike, current_fs: int = 200) -> dict:
     }
 
 
+def find_intervals_shorter_than(
+    signal: ArrayLike, threshold_samples: int
+) -> list[tuple[int, int]]:
+    """
+    Finds intervals in the signal where values are constant for fewer than threshold_samples.
+
+    Args:
+        signal: 1D array of signal values
+        threshold_samples: Minimum number of consecutive identical samples to be considered a valid run
+
+    Returns:
+        List of tuples representing the start and end indices of intervals shorter than the threshold.
+    """
+    signal = np.asarray(signal).flatten()
+    intervals = []
+    start = 0
+    for i in range(1, len(signal)):
+        if signal[i] != signal[i - 1]:
+            if i - start < threshold_samples:
+                intervals.append((start, i))
+            start = i
+    return intervals
+
+
 def print_analysis_results(record, result):
     if "error" in result:
         print(f"Error: {result['error']}")
@@ -89,6 +113,26 @@ def print_analysis_results(record, result):
         print(
             f"  Estimated original sampling rate (from median): {result['estimated_original_fs_from_median']:.2f} Hz"
         )
+
+
+def trim_signal(
+    signal: ArrayLike, trim_low: float, trim_high: float, fs: int = 200
+) -> np.ndarray:
+    """
+    Trims the start and end of a signal by a specified number of seconds.
+
+    Args:
+        signal: 1D array of signal values
+        trim_low: Number of seconds to trim from the start
+        trim_high: Number of seconds to trim from the end
+        fs: Sampling rate in Hz (default 200)
+
+    Returns:
+        Trimmed signal array.
+    """
+    trim_samples_low = int(trim_low * fs)
+    trim_samples_high = int(trim_high * fs)
+    return signal[trim_samples_low:-trim_samples_high]
 
 
 def resample_to_time_resolution(df: pd.DataFrame, target_resolution: float):

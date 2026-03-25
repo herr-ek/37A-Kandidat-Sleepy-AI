@@ -12,7 +12,7 @@ if __name__ == "__main__":
     channel_index = 11  # SaO2 channel
 
     record_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "data", record
+        os.path.dirname(os.path.dirname(__file__)), "data/raw", record
     )
     print(record_path)
 

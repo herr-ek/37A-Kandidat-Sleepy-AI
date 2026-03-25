@@ -179,6 +179,9 @@ class SleepDataPipeline:
                 "🧹 Preprocess signal (clean artifacts)", value="preprocess"
             ),
             questionary.Choice(
+                "🔍 Analyze signal for resampling", value="resample_analysis"
+            ),
+            questionary.Choice(
                 "🔄 Resample signal to different time resolution",
                 value="resample_signal",
             ),
@@ -212,6 +215,8 @@ class SleepDataPipeline:
                 self._preprocess_signal()
             elif action == "resample_signal":
                 self._resample_signal()
+            elif action == "resample_analysis":
+                self._resample_analysis()
             elif action == "save_dataframe":
                 self._save_dataframe()
             elif action == "export_parquet":
@@ -357,6 +362,20 @@ class SleepDataPipeline:
             output_file = output_dir / f"{self.selected_records[0]}_cleaned.parquet"
             df.to_parquet(output_file, index=False)
             console.print(f"[green]✓[/green] Saved to {output_file}")
+
+    def _resample_analysis(self):
+        """Analyze signal to estimate original sampling rate before resampling."""
+        console.print("\n[bold cyan]Analyzing signal for resampling...[/bold cyan]")
+
+        df = self._load_data()
+
+        if "sao2_percent" not in df.columns:
+            console.print("[red]✗ No SaO2 signal found in data[/red]")
+            return
+
+        signal = df["sao2_percent"].values
+        report = rs.find_pre_resampled_rate(signal, current_fs=200.0)
+        rs.print_analysis_results(self.selected_records[0], report)
 
     def _resample_signal(self):
         """Resample the signal to a different time resolution."""
