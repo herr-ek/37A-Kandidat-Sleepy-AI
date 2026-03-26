@@ -114,11 +114,10 @@ class CLI_UI:
                 "⌚ Resample signal",
                 value="resample_signal",
             ),
+            questionary.Choice("✨ Extract features", value="extract_features"),
+            questionary.Choice("🥞 Normalize features", value="normalize_features"),
             questionary.Choice(
-                "✨ Extract features and save to parquet", value="extract_features"
-            ),
-            questionary.Choice(
-                "💾 Save current dataframe to parquet", value="save_dataframe"
+                "💾 Save current features to parquet", value="save_features"
             ),
             questionary.Choice(
                 "📤 Export to parquet (if raw data)", value="export_parquet"

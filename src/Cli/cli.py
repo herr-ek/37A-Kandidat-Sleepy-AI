@@ -219,7 +219,29 @@ class SleepDataPipeline:
                 if success:
                     self.data_loader.current_dataframe = processed_df
                     self.data_loader.applied_operations.append("Preprocessed")
-
+            elif action == "normalize_features":
+                features = self.data_loader.get_features()
+                if features is None:
+                    self.console.print(
+                        "[red]✗ No features available. Please extract features first.[/red]"
+                    )
+                    return
+                postprocessed_df, success = self.data_processor.postprocess_features(
+                    features
+                )
+                if success:
+                    self.data_loader.current_features = postprocessed_df
+                    self.data_loader.applied_operations.append("Postprocessed Features")
+            elif action == "save_features":
+                features = self.data_loader.get_features()
+                if features is None:
+                    self.console.print(
+                        "[red]✗ No features available. Please extract features first.[/red]"
+                    )
+                    return
+                self.data_saver.save_features(
+                    features, self.selected_records, self.style
+                )
             elif action == "resample_analysis":
                 df = self.data_loader.load_data(
                     self.data_source, self.selected_records, self.custom_data_dir
@@ -245,6 +267,7 @@ class SleepDataPipeline:
                     self.data_source, self.selected_records, self.custom_data_dir
                 )
                 features_df, success = self.data_processor.extract_features(df)
+                self.data_loader.current_features = features_df
                 if success:
                     # Ask if user wants to save
                     import questionary

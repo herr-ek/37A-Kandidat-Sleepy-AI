@@ -8,12 +8,12 @@ import questionary
 
 try:
     from .. import Feature_extraction as fe
-    from .. import Preprocessing as pp
     from .. import Resampling as rs
+    from .. import Signal_processing as sp
 except ImportError:
     import Feature_extraction as fe
-    import Preprocessing as pp
     import Resampling as rs
+    import Signal_processing as sp
 
 
 class DataProcessor:
@@ -35,7 +35,7 @@ class DataProcessor:
             return df, False
 
         original_signal = df["sao2_percent"].to_numpy()
-        cleaned_signal = pp.preproccess_signal(original_signal)
+        cleaned_signal = sp.preproccess_signal(original_signal)
 
         df["sao2_percent"] = cleaned_signal
 
@@ -58,6 +58,25 @@ class DataProcessor:
 
         self.console.print("[green]✓[/green] Signal preprocessed")
         return df, True
+
+    def postprocess_features(self, df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+        """Postprocess extracted features (e.g., normalization).
+
+        Returns:
+            Tuple of (postprocessed_dataframe, was_modified)
+        """
+        self.console.print("\n[bold cyan]Postprocessing features...[/bold cyan]")
+
+        if df.empty:
+            self.console.print("[red]✗ No features to postprocess[/red]")
+            return df, False
+
+        normalized_df = sp.normalize_feature_df(df)
+
+        self.console.print("[green]✓[/green] Features postprocessed")
+        self.console.print(normalized_df.head().to_string())
+
+        return normalized_df, True
 
     def analyze_for_resampling(self, df: pd.DataFrame):
         """Analyze signal to estimate original sampling rate before resampling."""
@@ -116,7 +135,7 @@ class DataProcessor:
             )
             return pd.DataFrame(), False
 
-        features_df = fe.extract_features(df)
+        features_df = fe.extract_features(df, training=True)
 
         self.console.print(f"[green]✓[/green] Features extracted")
         self.console.print(features_df.head().to_string())

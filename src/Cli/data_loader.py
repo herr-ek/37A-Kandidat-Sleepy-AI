@@ -22,6 +22,7 @@ class DataLoader:
     def __init__(self, console):
         self.console = console
         self.current_dataframe = None
+        self.current_features = None
         self.applied_operations = []
 
     def load_data(
@@ -70,6 +71,10 @@ class DataLoader:
 
         self.current_dataframe = df
         return df
+
+    def get_features(self) -> Optional[pd.DataFrame]:
+        """Get the currently extracted features, if available."""
+        return self.current_features
 
     def _load_metadata(self, metadata_file: Path):
         """Load and parse metadata file to restore operations history."""
