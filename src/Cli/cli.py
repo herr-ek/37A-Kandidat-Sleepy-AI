@@ -176,19 +176,37 @@ class SleepDataPipeline:
         else:
             self.selected_records = [selected_record]
 
+        # Load data immediately so pipeline state reflects a loaded record
+        self.data_loader.load_data(
+            self.data_source, self.selected_records, self.custom_data_dir
+        )
+
     def choose_action(self) -> str:
         """Step 3: Choose what action to perform with the data."""
         # Show current dataframe status if loaded
-        if self.data_loader.current_dataframe is not None:
+        if (
+            self.data_loader.current_dataframe is not None
+            or self.data_loader.current_features is not None
+        ):
             self.data_display.display_dataframe_status(
                 self.data_loader.current_dataframe,
                 self.data_loader.applied_operations,
+                self.data_loader.current_features,
+                self.data_loader.current_features_normalized,
+                self.selected_records[0] if self.selected_records else None,
             )
 
         if self.mode == "batch":
             return self.ui.show_batch_mode_menu()
         else:
-            return self.ui.show_single_mode_menu()
+            state = {
+                "dataframe_loaded": self.data_loader.current_dataframe is not None,
+                "preprocessed": "Preprocessed" in self.data_loader.applied_operations,
+                "features_extracted": self.data_loader.current_features is not None,
+                "features_normalized": self.data_loader.current_features_normalized
+                is not None,
+            }
+            return self.ui.show_single_mode_menu(state)
 
     def execute_action(self, action: str):
         """Execute the selected action."""
@@ -219,28 +237,36 @@ class SleepDataPipeline:
                 if success:
                     self.data_loader.current_dataframe = processed_df
                     self.data_loader.applied_operations.append("Preprocessed")
+                    self.data_saver.save_dataframe(
+                        processed_df,
+                        self.selected_records,
+                        self.data_loader.applied_operations,
+                        self.data_source,
+                    )
             elif action == "normalize_features":
-                features = self.data_loader.get_features()
+                features, _ = self.data_loader.get_features()
                 if features is None:
                     self.console.print(
                         "[red]✗ No features available. Please extract features first.[/red]"
                     )
                     return
-                postprocessed_df, success = self.data_processor.postprocess_features(
+                normalized_features, success = self.data_processor.normalize_features(
                     features
                 )
                 if success:
-                    self.data_loader.current_features = postprocessed_df
+                    self.data_loader.current_features_normalized = normalized_features
                     self.data_loader.applied_operations.append("Postprocessed Features")
             elif action == "save_features":
-                features = self.data_loader.get_features()
+                features, normalized_features = self.data_loader.get_features()
                 if features is None:
                     self.console.print(
                         "[red]✗ No features available. Please extract features first.[/red]"
                     )
                     return
                 self.data_saver.save_features(
-                    features, self.selected_records, self.style
+                    features,
+                    self.selected_records,
+                    normalized_features_df=normalized_features,
                 )
             elif action == "resample_analysis":
                 df = self.data_loader.load_data(
@@ -261,6 +287,12 @@ class SleepDataPipeline:
                     self.data_loader.applied_operations.append(
                         f"Resampled({target_resolution}s)"
                     )
+                    self.data_saver.save_dataframe(
+                        resampled_df,
+                        self.selected_records,
+                        self.data_loader.applied_operations,
+                        self.data_source,
+                    )
 
             elif action == "extract_features":
                 df = self.data_loader.load_data(
@@ -268,6 +300,7 @@ class SleepDataPipeline:
                 )
                 features_df, success = self.data_processor.extract_features(df)
                 self.data_loader.current_features = features_df
+                self.data_loader.current_features_normalized = None
                 if success:
                     # Ask if user wants to save
                     import questionary
@@ -277,7 +310,9 @@ class SleepDataPipeline:
                     ).ask()
                     if save:
                         self.data_saver.save_features(
-                            features_df, self.selected_records, self.style
+                            features_df,
+                            self.selected_records,
+                            normalized_features_df=self.data_loader.current_features_normalized,
                         )
 
             elif action == "save_dataframe":
@@ -290,7 +325,6 @@ class SleepDataPipeline:
                         self.selected_records,
                         self.data_loader.applied_operations,
                         self.data_source,
-                        self.style,
                     )
 
             elif action == "export_parquet":

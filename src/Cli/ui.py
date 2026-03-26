@@ -96,32 +96,75 @@ class CLI_UI:
 
         return selected if selected else []
 
-    def show_single_mode_menu(self) -> str:
+    def show_single_mode_menu(self, state: dict = None) -> str:
         """Show action menu for single mode."""
         self.console.print("\n[bold]Step 3:[/bold] Choose an action", style="cyan")
 
+        if state is None:
+            state = {}
+
+        df_loaded = state.get("dataframe_loaded", False)
+        preprocessed = state.get("preprocessed", False)
+        features_extracted = state.get("features_extracted", False)
+        features_normalized = state.get("features_normalized", False)
+
+        def _disabled(condition: bool, reason: str):
+            return None if condition else reason
+
         actions = [
-            questionary.Choice("📋 Display data as DataFrame", value="display_df"),
-            questionary.Choice("📊 Show data statistics", value="show_stats"),
-            questionary.Choice("📈 Plot signal with annotations", value="plot_signal"),
+            questionary.Separator("── View ──────────────────────────────"),
             questionary.Choice(
-                "🧹 Preprocess signal (clean artifacts)", value="preprocess"
+                "📋 Display data as DataFrame",
+                value="display_df",
+                disabled=_disabled(df_loaded, "Load data first"),
             ),
             questionary.Choice(
-                "🔍 Analyze signal for resampling", value="resample_analysis"
+                "📊 Show data statistics",
+                value="show_stats",
+                disabled=_disabled(df_loaded, "Load data first"),
+            ),
+            questionary.Choice(
+                "📈 Plot signal with annotations",
+                value="plot_signal",
+                disabled=_disabled(df_loaded, "Load data first"),
+            ),
+            questionary.Separator("── Pipeline ──────────────────────────"),
+            questionary.Choice(
+                "🧹 Preprocess signal",
+                value="preprocess",
+                disabled=_disabled(df_loaded, "Load data first"),
+            ),
+            questionary.Choice(
+                "✨ Extract features",
+                value="extract_features",
+                disabled=_disabled(preprocessed, "Preprocess signal first"),
+            ),
+            questionary.Choice(
+                "🥞 Normalize features",
+                value="normalize_features",
+                disabled=_disabled(features_extracted, "Extract features first"),
+            ),
+            questionary.Choice(
+                "💾 Save features",
+                value="save_features",
+                disabled=_disabled(features_extracted, "Extract features first"),
+            ),
+            questionary.Separator("── Resampling ────────────────────────"),
+            questionary.Choice(
+                "🔍 Analyze signal for resampling",
+                value="resample_analysis",
+                disabled=_disabled(df_loaded, "Load data first"),
             ),
             questionary.Choice(
                 "⌚ Resample signal",
                 value="resample_signal",
+                disabled=_disabled(df_loaded, "Load data first"),
             ),
-            questionary.Choice("✨ Extract features", value="extract_features"),
-            questionary.Choice("🥞 Normalize features", value="normalize_features"),
+            questionary.Separator("── File ──────────────────────────────"),
             questionary.Choice(
-                "💾 Save current features to parquet", value="save_features"
+                "📤 Export to parquet (raw data only)", value="export_parquet"
             ),
-            questionary.Choice(
-                "📤 Export to parquet (if raw data)", value="export_parquet"
-            ),
+            questionary.Separator("── Navigation ────────────────────────"),
             questionary.Choice("🔄 Select different record", value="change_record"),
             questionary.Choice("🔙 Back to data source selection", value="restart"),
             questionary.Choice("❌ Exit", value="exit"),

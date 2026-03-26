@@ -31,7 +31,12 @@ class DataDisplay:
             self.console.print(f"  • {col} ({df[col].dtype})")
 
     def display_dataframe_status(
-        self, current_dataframe: pd.DataFrame, applied_operations: list
+        self,
+        current_dataframe: pd.DataFrame,
+        applied_operations: list,
+        current_features: pd.DataFrame = None,
+        current_features_normalized: pd.DataFrame = None,
+        record_name: str = None,
     ):
         """Display status of current dataframe and applied operations."""
         status_table = Table(
@@ -41,6 +46,7 @@ class DataDisplay:
             border_style="dim",
         )
         status_table.add_column("Info", style="dim")
+        status_table.add_row(f"📁 Record: {record_name if record_name else 'Unknown'}")
 
         if current_dataframe is not None:
             rows, cols = current_dataframe.shape
@@ -55,6 +61,18 @@ class DataDisplay:
                 )
         else:
             status_table.add_row("📊 No dataframe loaded yet")
+
+        if current_features is not None:
+            f_rows, f_cols = current_features.shape
+            status_table.add_row(
+                f"🧩 Features: Extracted ({f_rows:,} rows × {f_cols} columns)"
+            )
+            normalization_status = (
+                "Yes" if current_features_normalized is not None else "No"
+            )
+            status_table.add_row(f"📐 Features normalized: {normalization_status}")
+        else:
+            status_table.add_row("🧩 Features: Not extracted")
 
         self.console.print(status_table)
 

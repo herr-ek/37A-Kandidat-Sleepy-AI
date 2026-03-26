@@ -23,6 +23,7 @@ class DataLoader:
         self.console = console
         self.current_dataframe = None
         self.current_features = None
+        self.current_features_normalized = None
         self.applied_operations = []
 
     def load_data(
@@ -69,12 +70,56 @@ class DataLoader:
             if metadata_file.exists():
                 self._load_metadata(metadata_file)
 
+            # Optionally load features from the same processed record directory.
+            feature_candidates = sorted(
+                [
+                    p
+                    for p in parquet_file.parent.glob("*feature*.parquet")
+                    if p != parquet_file
+                ]
+            )
+            if feature_candidates:
+                import questionary
+
+                load_features = questionary.confirm(
+                    "Feature parquet file(s) found. Load features as well?",
+                    default=True,
+                ).ask()
+
+                if load_features:
+                    normal_feature_files = [
+                        p
+                        for p in feature_candidates
+                        if "normalized" not in p.stem.lower()
+                    ]
+                    normalized_feature_files = [
+                        p for p in feature_candidates if "normalized" in p.stem.lower()
+                    ]
+
+                    if normal_feature_files:
+                        self.current_features = dm.load_from_parquet_to_pandas(
+                            str(normal_feature_files[0])
+                        )
+                        self.console.print(
+                            f"[dim]🧩 Loaded features: {normal_feature_files[0].name}[/dim]"
+                        )
+
+                    if normalized_feature_files:
+                        self.current_features_normalized = (
+                            dm.load_from_parquet_to_pandas(
+                                str(normalized_feature_files[0])
+                            )
+                        )
+                        self.console.print(
+                            f"[dim]📐 Loaded normalized features: {normalized_feature_files[0].name}[/dim]"
+                        )
+
         self.current_dataframe = df
         return df
 
-    def get_features(self) -> Optional[pd.DataFrame]:
+    def get_features(self) -> tuple[Optional[pd.DataFrame], Optional[pd.DataFrame]]:
         """Get the currently extracted features, if available."""
-        return self.current_features
+        return self.current_features, self.current_features_normalized
 
     def _load_metadata(self, metadata_file: Path):
         """Load and parse metadata file to restore operations history."""
@@ -208,4 +253,6 @@ class DataLoader:
     def clear(self):
         """Clear the cached dataframe."""
         self.current_dataframe = None
+        self.current_features = None
+        self.current_features_normalized = None
         self.applied_operations = []
