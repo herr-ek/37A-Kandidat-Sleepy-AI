@@ -3,16 +3,20 @@ import pandas as pd
 
 
 def extract_features(
-    data: pd.DataFrame, windowSize: int = 10, overlap: float = 0.5
+    data: pd.DataFrame,
+    windowSize: int = 10,
+    overlap: float = 0.5,
+    training: bool = False,
 ) -> pd.DataFrame:
     """
     Extracts features from the SaO2 signal in the given DataFrame.
     Utilized a sliding window approach to compute features for each segment of the signal.
 
     Args:
-        data: DataFrame containing 'time_s' and 'sao2_percent' columns.
+        data: DataFrame containing 'time_s', 'sao2_percent', and 'is_apnea'/'is_hypopnea' columns.
         windowSize: The window size for feature extraction. Default is 10.
         overlap: The proportion of overlap between consecutive windows. Default is 0.5 (50% overlap).
+        training: Boolean indicating whether to include training labels. Default is False.
 
     Returns:
         DataFrame containing the extracted features.
@@ -48,5 +52,10 @@ def extract_features(
         features.loc[i, "lempel_ziv"] = ant.lziv_complexity(
             window_data["sao2_percent"].values
         )
+        if training:
+            apnea_event = (window_data["is_apnea"].sum() >= windowSize / 2) or (
+                window_data["is_hypopnea"].sum() >= windowSize / 2
+            )
+            features.loc[i, "apnea_event"] = 1 if apnea_event else 0
 
     return features

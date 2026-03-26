@@ -2,7 +2,6 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.io
 import wfdb
 from numpy.typing import ArrayLike
 
