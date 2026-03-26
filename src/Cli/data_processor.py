@@ -59,21 +59,21 @@ class DataProcessor:
         self.console.print("[green]✓[/green] Signal preprocessed")
         return df, True
 
-    def postprocess_features(self, df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
-        """Postprocess extracted features (e.g., normalization).
+    def normalize_features(self, df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
+        """Normalize extracted features.
 
         Returns:
-            Tuple of (postprocessed_dataframe, was_modified)
+            Tuple of (normalized_dataframe, was_modified)
         """
-        self.console.print("\n[bold cyan]Postprocessing features...[/bold cyan]")
+        self.console.print("\n[bold cyan]Normalizing features...[/bold cyan]")
 
         if df.empty:
-            self.console.print("[red]✗ No features to postprocess[/red]")
+            self.console.print("[red]✗ No features to normalize[/red]")
             return df, False
 
         normalized_df = sp.normalize_feature_df(df)
 
-        self.console.print("[green]✓[/green] Features postprocessed")
+        self.console.print("[green]✓[/green] Features normalized")
         self.console.print(normalized_df.head().to_string())
 
         return normalized_df, True
