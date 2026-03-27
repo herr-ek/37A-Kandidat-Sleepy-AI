@@ -1,11 +1,9 @@
-from numpy.typing import ArrayLike
-import scipy.io
-import numpy as np
-import wfdb
-import matplotlib.pyplot as plt
-from scipy.signal import medfilt
 import os
 
+import matplotlib.pyplot as plt
+import numpy as np
+import wfdb
+from numpy.typing import ArrayLike
 
 # SaO2 ARTIFACT REMOVAL (4 steps: remove impossible values, remove spikes, interpolate, median filter)
 
@@ -23,7 +21,7 @@ def preproccess_signal(signal: ArrayLike) -> np.ndarray:
     # Remove unrealistic spikes using derivative (sao2 should move slowly)
     # Unsure if this is unnecessary, but it removes very sharp jumps that are likely artifacts
     diff = np.abs(np.diff(clean))
-    spike_threshold = 8
+    spike_threshold = 4
 
     spikes = np.where(diff > spike_threshold)[0]
 
@@ -39,15 +37,10 @@ def preproccess_signal(signal: ArrayLike) -> np.ndarray:
             np.flatnonzero(nans), np.flatnonzero(~nans), clean[~nans]
         )
 
-    # Median filter to remove small spikes
-    clean = medfilt(clean, kernel_size=9)
-
     return clean
 
 
 # EVENT EXTRACTION (RESPIRATORY EVENTS) (resp_obstructiveapnea, resp_centralapnea, resp_hypopnea)
-
-
 def get_respiratory_events(ann):
     notes = np.array(ann.aux_note)
     mask = [(n.startswith("(resp_") or n.startswith("resp_")) for n in notes]

@@ -1,21 +1,40 @@
-import Preprocessing as pp
-import Data_management as dm
-import Resampling as rs
+import questionary
+from rich.console import Console
 
-import os
-import wfdb
-import pandas as pd
-import numpy as np
+from Cli.utils import get_questionary_style
+
+console = Console()
 
 if __name__ == "__main__":
-    record = "tr03-0146"
-    channel_index = 11  # SaO2 channel
+    running = True
+    # Select program to run
+    while running:
+        console.print(
+            "Welcome to the Sleep Data Analysis Pipeline!", style="bold green"
+        )
+        program_choice = questionary.select(
+            "Select a program to run:",
+            choices=[
+                questionary.Choice("📊 CLI Interface", value="cli"),
+                questionary.Choice(
+                    "_TRAINING PIPELINE (NOT IMPLEMENTED YET)", value="training"
+                ),
+                questionary.Choice("❌ Exit", value="exit"),
+            ],
+            style=get_questionary_style(),
+        ).ask()
 
-    record_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), "data/raw", record
-    )
-    print(record_path)
+        if program_choice == "cli":
+            from Cli import SleepDataPipeline
 
-    df = dm.load_from_mat_and_arousal_to_pandas(record_path)
-    report = rs.find_pre_resampled_rate(df["sao2_percent"].values, current_fs=200.0)
-    rs.print_analysis_results(record, report)
+            pipeline = SleepDataPipeline(console)
+            pipeline.run()
+        elif program_choice == "training":
+            # TODO - implement training pipeline
+            console.print(
+                "Training pipeline is not implemented yet. Please select the CLI interface.",
+                style="yellow",
+            )
+        elif program_choice == "exit":
+            console.print("Goodbye!", style="bold green")
+            running = False
