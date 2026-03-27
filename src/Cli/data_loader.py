@@ -32,6 +32,7 @@ class DataLoader:
         selected_records: List[str],
         custom_data_dir: Optional[str] = None,
         alt_record: Optional[str] = None,
+        load_features_mode: str = "prompt",
     ) -> pd.DataFrame:
         """Load data based on current data source and selected record.
 
@@ -40,6 +41,8 @@ class DataLoader:
             selected_records: List of selected record names
             custom_data_dir: Optional custom directory path
             alt_record: Optional specific record to load (used for batch mode)
+            load_features_mode: "prompt" (ask user), "auto" (load silently),
+                                 or "skip" (never load feature files)
 
         Returns:
             Loaded DataFrame
@@ -78,15 +81,18 @@ class DataLoader:
                     if p != parquet_file
                 ]
             )
-            if feature_candidates:
-                import questionary
+            if feature_candidates and load_features_mode != "skip":
+                if load_features_mode == "prompt":
+                    import questionary
 
-                load_features = questionary.confirm(
-                    "Feature parquet file(s) found. Load features as well?",
-                    default=True,
-                ).ask()
+                    should_load = questionary.confirm(
+                        "Feature parquet file(s) found. Load features as well?",
+                        default=True,
+                    ).ask()
+                else:  # "auto"
+                    should_load = True
 
-                if load_features:
+                if should_load:
                     normal_feature_files = [
                         p
                         for p in feature_candidates

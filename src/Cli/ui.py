@@ -182,13 +182,9 @@ class CLI_UI:
 
         batch_actions = [
             questionary.Choice(
-                "🔄 Process all selected records with default pipeline",
-                value="batch_process",
+                "▶  Configure and run batch pipeline", value="run_pipeline"
             ),
-            questionary.Choice(
-                "⌚ Resample all records to target resolution",
-                value="batch_resample",
-            ),
+            questionary.Separator("── Navigation ────────────────────────"),
             questionary.Choice("🔙 Back to data source selection", value="restart"),
             questionary.Choice("❌ Exit", value="exit"),
         ]
@@ -198,6 +194,38 @@ class CLI_UI:
         ).ask()
 
         return choice
+
+    def prompt_batch_pipeline_steps(self, data_source: str) -> list:
+        """Prompt user to select which pipeline steps to apply in batch mode."""
+        self.console.print(
+            "\n[dim]Select steps to apply to each record (space to toggle).[/dim]"
+        )
+
+        choices = []
+        if data_source == "raw":
+            choices.append(
+                questionary.Choice(
+                    "📤 Export raw data to parquet",
+                    value="export_parquet",
+                    checked=True,
+                )
+            )
+        choices += [
+            questionary.Choice(
+                "🧹 Preprocess signal", value="preprocess", checked=True
+            ),
+            questionary.Choice("⌚ Resample signal", value="resample"),
+            questionary.Choice("✨ Extract features", value="extract_features"),
+            questionary.Choice("🥞 Normalize features", value="normalize_features"),
+        ]
+
+        selected = questionary.checkbox(
+            "Pipeline steps:",
+            choices=choices,
+            style=self.style,
+        ).ask()
+
+        return selected if selected else []
 
     def prompt_custom_directory(self) -> bool:
         """Prompt user if they want to use custom directory."""

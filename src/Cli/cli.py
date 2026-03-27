@@ -54,6 +54,8 @@ class SleepDataPipeline:
         self.mode = None
         self.selected_records = []
         self.custom_data_dir = None
+        self.batch_steps = []
+        self.batch_resample_resolution = None
 
         # Initialize component modules
         self.style = get_questionary_style()
@@ -197,7 +199,16 @@ class SleepDataPipeline:
             )
 
         if self.mode == "batch":
-            return self.ui.show_batch_mode_menu()
+            action = self.ui.show_batch_mode_menu()
+            if action == "run_pipeline":
+                self.batch_steps = self.ui.prompt_batch_pipeline_steps(self.data_source)
+                self.batch_resample_resolution = None
+                if "resample" in self.batch_steps:
+                    self.batch_resample_resolution = (
+                        self.data_processor.prompt_target_resolution()
+                    )
+                return "batch_pipeline"
+            return action
         else:
             state = {
                 "dataframe_loaded": self.data_loader.current_dataframe is not None,
@@ -342,15 +353,18 @@ class SleepDataPipeline:
                 self.choose_data_source()
                 self.select_records()
 
-            elif action == "batch_process":
-                self.batch_processor.batch_process_records(
-                    self.selected_records, self.data_loader, self.data_processor
-                )
-
-            elif action == "batch_resample":
-                target_resolution = self.data_processor.prompt_target_resolution()
-                self.batch_processor.batch_resample_records(
-                    self.selected_records, target_resolution, self.data_loader
+            elif action == "batch_pipeline":
+                if not self.batch_steps:
+                    self.console.print("[yellow]⚠ No pipeline steps selected.[/yellow]")
+                    return
+                self.batch_processor.run_pipeline(
+                    self.selected_records,
+                    self.batch_steps,
+                    self.data_source,
+                    self.data_loader,
+                    self.data_processor,
+                    self.data_saver,
+                    resample_resolution=self.batch_resample_resolution,
                 )
 
         except Exception as e:
