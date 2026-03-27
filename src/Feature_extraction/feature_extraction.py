@@ -1,5 +1,5 @@
-import antropy as ant
 import pandas as pd
+from antropy import lziv_complexity
 
 
 def extract_features(
@@ -57,7 +57,7 @@ def extract_features(
         features.loc[i, "std_sao2"] = window_data["sao2_percent"].std()
         features.loc[i, "skew_sao2"] = window_data["sao2_percent"].skew()
         features.loc[i, "min_sao2"] = window_data["sao2_percent"].min()
-        features.loc[i, "lempel_ziv"] = ant.lziv_complexity(
+        features.loc[i, "lempel_ziv"] = lziv_complexity(
             window_data["sao2_percent"].values
         )
         # Calculate proportions of SaO2 values in different ranges for the extended window
