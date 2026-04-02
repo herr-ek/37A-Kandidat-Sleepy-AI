@@ -8,6 +8,7 @@ from pathlib import Path
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"
+MODELS_DIR = DATA_DIR / "models"
 
 # Constants
 DEFAULT_BATCH_PREPROCESS_RESOLUTION = 0.5  # seconds

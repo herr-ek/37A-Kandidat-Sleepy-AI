@@ -30,6 +30,7 @@ try:
     from .data_processor import DataProcessor
     from .data_saver import DataSaver
     from .downloader import PhysioNetDownloader
+    from .training_manager import TrainingManager
     from .ui import CLI_UI
     from .utils import get_questionary_style, set_custom_directory
 except ImportError:
@@ -41,6 +42,7 @@ except ImportError:
     from data_processor import DataProcessor
     from data_saver import DataSaver
     from downloader import PhysioNetDownloader
+    from training_manager import TrainingManager
     from ui import CLI_UI
     from utils import get_questionary_style, set_custom_directory
 
@@ -55,7 +57,6 @@ class SleepDataPipeline:
         self.selected_records = []
         self.custom_data_dir = None
         self.batch_steps = []
-        self.batch_resample_resolution = None
 
         # Initialize component modules
         self.style = get_questionary_style()
@@ -66,6 +67,7 @@ class SleepDataPipeline:
         self.data_saver = DataSaver(self.console)
         self.downloader = PhysioNetDownloader(self.console)
         self.batch_processor = BatchProcessor(self.console)
+        self.training_manager = TrainingManager(self.console, self.style)
 
     def run(self):
         """Main entry point for the CLI."""
@@ -105,6 +107,11 @@ class SleepDataPipeline:
         if choice == "exit":
             self.console.print("[yellow]Goodbye![/yellow]")
             sys.exit(0)
+        elif choice == "train":
+            self.training_manager.run()
+            # Return to main menu after training completes
+            self.choose_data_source()
+            return
         elif choice == "download":
             self._handle_download()
             # After download, let user choose data source again
@@ -202,11 +209,6 @@ class SleepDataPipeline:
             action = self.ui.show_batch_mode_menu()
             if action == "run_pipeline":
                 self.batch_steps = self.ui.prompt_batch_pipeline_steps(self.data_source)
-                self.batch_resample_resolution = None
-                if "resample" in self.batch_steps:
-                    self.batch_resample_resolution = (
-                        self.data_processor.prompt_target_resolution()
-                    )
                 return "batch_pipeline"
             return action
         else:
@@ -364,7 +366,6 @@ class SleepDataPipeline:
                     self.data_loader,
                     self.data_processor,
                     self.data_saver,
-                    resample_resolution=self.batch_resample_resolution,
                 )
 
         except Exception as e:
