@@ -50,7 +50,7 @@ except ImportError:
 class SleepDataPipeline:
     """Main pipeline controller for sleep data analysis."""
 
-    def __init__(self, console):
+    def __init__(self, console: Console):
         self.console = console
         self.data_source = None
         self.mode = None

@@ -2,6 +2,7 @@ import joblib
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, recall_score
 from sklearn.svm import LinearSVC
+from sklearn.utils.class_weight import compute_sample_weight
 
 try:
     from ..IModel import IModel
@@ -14,11 +15,11 @@ class SVM(IModel):
         self.model = LinearSVC(
             C=C,
             random_state=random_state,
-            class_weight="balanced",
         )
 
     def train(self, X: np.ndarray, y: np.ndarray) -> None:
-        self.model.fit(X, y)
+        sample_weight = compute_sample_weight("balanced", y)
+        self.model.fit(X, y, sample_weight=sample_weight)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self.model.predict(X)

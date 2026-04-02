@@ -95,7 +95,7 @@ class TrainingSession:
         self.console.print(table)
 
     def build_dataset(
-        self, selected_records: list[str]
+        self, selected_records: list[str], use_normalized: bool = True
     ) -> tuple[np.ndarray, np.ndarray, list[str]]:
         """Load and concatenate feature files for the selected records.
 
@@ -105,9 +105,6 @@ class TrainingSession:
             feature_names: List of feature column names
         """
         frames = []
-        use_normalized = questionary.confirm(
-            "Use normalized features (if available)", default=True
-        ).ask()
 
         for record_name in selected_records:
             if use_normalized and self._check_normalized(record_name):

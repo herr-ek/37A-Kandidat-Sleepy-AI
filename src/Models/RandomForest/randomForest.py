@@ -2,6 +2,7 @@ import joblib
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score, recall_score
+from sklearn.utils.class_weight import compute_sample_weight
 
 try:
     from ..IModel import IModel
@@ -11,14 +12,15 @@ except ImportError:
 
 class RandomForest(IModel):
     def __init__(
-        self, n_estimators: int = 100, max_depth: int = 10, random_state: int = 42
+        self, n_estimators: int = 101, max_depth: int = 10, random_state: int = 42
     ):
         self.model = RandomForestClassifier(
             n_estimators=n_estimators, max_depth=max_depth, random_state=random_state
         )
 
     def train(self, X: np.ndarray, y: np.ndarray) -> None:
-        self.model.fit(X, y)
+        sample_weight = compute_sample_weight("balanced", y)
+        self.model.fit(X, y, sample_weight=sample_weight)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self.model.predict(X)

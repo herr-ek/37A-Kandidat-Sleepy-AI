@@ -125,8 +125,15 @@ class TrainingManager:
         self._ensure_feature_coverage(selected_names)
 
         # 4. Build dataset
+        use_normalized = questionary.confirm(
+            "Use normalized features (if available)?", default=True, style=self.style
+        ).ask()
+        if use_normalized is None:
+            return
         try:
-            X, y, feature_names = self.session.build_dataset(selected_names)
+            X, y, feature_names = self.session.build_dataset(
+                selected_names, use_normalized=use_normalized
+            )
         except ValueError as exc:
             self.console.print(f"[red]✗ {exc}[/red]")
             return
