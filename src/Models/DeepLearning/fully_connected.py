@@ -17,41 +17,35 @@ except ImportError:
     from Models.IModel import IModel
 
 
-class _CNN1DNet(nn.Module):
-    """Internal 1-D convolutional network for sequence classification."""
-
-    def __init__(self, window_size: int, num_filters: int, hidden_size: int):
+class _FCNet(nn.Module):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_sizes: list[int],
+        dropout: float = 0.0,
+    ):
         super().__init__()
-        self.conv = nn.Sequential(
-            nn.Conv1d(1, num_filters, kernel_size=5, padding=2),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
-            nn.Conv1d(num_filters, num_filters * 2, kernel_size=5, padding=2),
-            nn.ReLU(),
-            nn.MaxPool1d(2),
-        )
-        # Two MaxPool1d(2) layers halve the length twice: window_size → window_size // 4
-        conv_out_len = window_size // 4
-        self.fc = nn.Sequential(
-            nn.Linear(conv_out_len * num_filters * 2, hidden_size),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(hidden_size, 1),
-        )
+        layers: list[nn.Module] = []
+        prev = input_size
+        for h in hidden_sizes:
+            layers.append(nn.Linear(prev, h))
+            layers.append(nn.BatchNorm1d(h))
+            layers.append(nn.ReLU())
+            if dropout > 0.0:
+                layers.append(nn.Dropout(dropout))
+            prev = h
+        layers.append(nn.Linear(prev, 1))
+        self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x.unsqueeze(1)  # (B, W) → (B, 1, W)
-        x = self.conv(x)  # (B, num_filters*2, W//4)
-        x = x.view(x.size(0), -1)  # flatten
-        return self.fc(x).squeeze(1)  # (B,)
+        return self.net(x).squeeze(1)  # (B,)
 
 
-class CNN1D(IModel):
-    """1-D CNN for apnea classification on raw SaO2 windows.
+class FullyConnected(IModel):
+    """Fully-connected (MLP) network for apnea classification on raw SaO2 windows.
 
-    Unlike the classical models, this model is trained on raw sliding-window
-    signal data rather than hand-crafted features. Window length must match
-    the ``window_size`` used when building the dataset.
+    Each window of length ``window_size`` is fed as a flat feature vector.
+    Window length must match the ``window_size`` used when building the dataset.
     """
 
     FILE_EXTENSION = ".pt"
@@ -59,8 +53,8 @@ class CNN1D(IModel):
     def __init__(
         self,
         window_size: int = 60,
-        num_filters: int = 16,
-        hidden_size: int = 64,
+        hidden_sizes: list[int] = None,
+        dropout: float = 0.3,
         num_epochs: int = 20,
         batch_size: int = 1024,
         lr: float = 1e-3,
@@ -68,20 +62,24 @@ class CNN1D(IModel):
         verbose: bool = False,
     ):
         self.window_size = window_size
-        self.num_filters = num_filters
-        self.hidden_size = hidden_size
+        self.hidden_sizes = hidden_sizes if hidden_sizes is not None else [128, 64]
+        self.dropout = dropout
         self.num_epochs = num_epochs
         self.batch_size = batch_size
         self.lr = lr
         self.max_pos_weight = max_pos_weight
         self.verbose = verbose
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self._input_mean: np.ndarray | None = None
+        self._input_std: np.ndarray | None = None
         self._build_net()
 
     def _build_net(self):
-        self.net = _CNN1DNet(self.window_size, self.num_filters, self.hidden_size).to(
-            self.device
-        )
+        self.net = _FCNet(
+            input_size=self.window_size,
+            hidden_sizes=self.hidden_sizes,
+            dropout=self.dropout,
+        ).to(self.device)
 
     def train(self, X: np.ndarray, y: np.ndarray) -> None:
         from sklearn.model_selection import train_test_split
@@ -91,9 +89,15 @@ class CNN1D(IModel):
             X, y, test_size=0.1, random_state=42, stratify=y
         )
 
-        X_t = torch.tensor(X_tr, dtype=torch.float32)
+        # Fit input normalisation on training split only
+        self._input_mean = X_tr.mean(axis=0)
+        self._input_std = X_tr.std(axis=0) + 1e-8
+        X_tr_n = (X_tr - self._input_mean) / self._input_std
+        X_val_n = (X_val - self._input_mean) / self._input_std
+
+        X_t = torch.tensor(X_tr_n, dtype=torch.float32)
         y_t = torch.tensor(y_tr, dtype=torch.float32)
-        X_val_t = torch.tensor(X_val, dtype=torch.float32)
+        X_val_t = torch.tensor(X_val_n, dtype=torch.float32)
 
         loader = DataLoader(
             TensorDataset(X_t, y_t),
@@ -102,8 +106,6 @@ class CNN1D(IModel):
             pin_memory=self.device.type == "cuda",
         )
 
-        # Balanced weighting: pos_weight = n_negative / n_positive, capped to
-        # avoid extreme over-correction on highly imbalanced datasets.
         classes = np.unique(y_tr)
         if len(classes) == 2:
             weights = compute_class_weight("balanced", classes=classes, y=y_tr)
@@ -119,7 +121,7 @@ class CNN1D(IModel):
         optimizer = torch.optim.Adam(self.net.parameters(), lr=self.lr)
 
         if self.verbose:
-            print(f"Training CNN1D on device: {self.device}")
+            print(f"Training FullyConnected on device: {self.device}")
 
         self.net.train()
         epoch_bar = tqdm(
@@ -149,14 +151,8 @@ class CNN1D(IModel):
 
             avg_loss = epoch_loss / max(len(X_t), 1)
 
-            # Per-epoch evaluation on the held-out validation split
-            self.net.eval()
-            with torch.no_grad():
-                val_Xb = X_val_t.to(
-                    self.device, non_blocking=self.device.type == "cuda"
-                )
-                val_probs = torch.sigmoid(self.net(val_Xb))
-                val_pred = (val_probs >= 0.5).cpu().numpy().astype(np.int64)
+            # Per-epoch evaluation on the held-out validation split (batched)
+            val_pred = self._infer_batched(X_val_t)
             val_ba = balanced_accuracy_score(y_val, val_pred)
             val_f1 = f1_score(y_val, val_pred, average="macro", zero_division=0)
             self.net.train()
@@ -175,12 +171,27 @@ class CNN1D(IModel):
                 f1=f"{val_f1:.3f}",
             )
 
-    def predict(self, X: np.ndarray) -> np.ndarray:
+    def _normalise(self, X: np.ndarray) -> np.ndarray:
+        if self._input_mean is not None:
+            return (X - self._input_mean) / self._input_std
+        return X
+
+    def _infer_batched(self, X_t: torch.Tensor) -> np.ndarray:
+        """Run inference in batches to avoid GPU OOM on large tensors."""
         self.net.eval()
+        preds = []
         with torch.no_grad():
-            X_t = torch.tensor(X, dtype=torch.float32).to(self.device)
-            probs = torch.sigmoid(self.net(X_t))
-        return (probs >= 0.5).cpu().numpy().astype(np.int64)
+            for i in range(0, len(X_t), self.batch_size):
+                Xb = X_t[i : i + self.batch_size].to(
+                    self.device, non_blocking=self.device.type == "cuda"
+                )
+                probs = torch.sigmoid(self.net(Xb))
+                preds.append((probs >= 0.5).cpu().numpy().astype(np.int64))
+        return np.concatenate(preds)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        X_t = torch.tensor(self._normalise(X), dtype=torch.float32)
+        return self._infer_batched(X_t)
 
     def evaluate(self, X: np.ndarray, y: np.ndarray) -> dict:
         y_pred = self.predict(X)
@@ -196,17 +207,21 @@ class CNN1D(IModel):
             {
                 "state_dict": self.net.state_dict(),
                 "window_size": self.window_size,
-                "num_filters": self.num_filters,
-                "hidden_size": self.hidden_size,
+                "hidden_sizes": self.hidden_sizes,
+                "dropout": self.dropout,
+                "input_mean": self._input_mean,
+                "input_std": self._input_std,
             },
             file_path,
         )
 
-    def load(self, file_path: str) -> "CNN1D":
+    def load(self, file_path: str) -> "FullyConnected":
         ckpt = torch.load(file_path, map_location=self.device)
         self.window_size = ckpt["window_size"]
-        self.num_filters = ckpt["num_filters"]
-        self.hidden_size = ckpt["hidden_size"]
+        self.hidden_sizes = ckpt["hidden_sizes"]
+        self.dropout = ckpt["dropout"]
+        self._input_mean = ckpt.get("input_mean")
+        self._input_std = ckpt.get("input_std")
         self._build_net()
         self.net.load_state_dict(ckpt["state_dict"])
         return self

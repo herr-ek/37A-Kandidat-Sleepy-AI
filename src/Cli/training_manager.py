@@ -75,6 +75,51 @@ def _build_model_registry() -> dict:
                 "num_epochs": 20,
                 "batch_size": 1024,
                 "lr": 1e-3,
+                "max_pos_weight": 10.0,
+                "verbose": True,
+            },
+        )
+    except ImportError:
+        pass
+
+    try:
+        try:
+            from ..Models.DeepLearning import FullyConnected
+        except ImportError:
+            from Models.DeepLearning import FullyConnected
+        registry["Deep (FC)"] = (
+            FullyConnected,
+            {
+                "window_size": 60,
+                "hidden_sizes": [128, 64],
+                "dropout": 0.3,
+                "num_epochs": 20,
+                "batch_size": 1024,
+                "lr": 1e-3,
+                "max_pos_weight": 10.0,
+                "verbose": True,
+            },
+        )
+    except ImportError:
+        pass
+
+    try:
+        try:
+            from ..Models.DeepLearning import RNN
+        except ImportError:
+            from Models.DeepLearning import RNN
+        registry["Deep (RNN)"] = (
+            RNN,
+            {
+                "window_size": 60,
+                "hidden_size": 64,
+                "num_layers": 2,
+                "dropout": 0.3,
+                "num_epochs": 20,
+                "batch_size": 1024,
+                "lr": 1e-3,
+                "max_pos_weight": 10.0,
+                "verbose": True,
             },
         )
     except ImportError:
@@ -338,8 +383,13 @@ class TrainingManager:
                 return None
             # Preserve type of the default value
             try:
-                params[param] = type(default_val)(raw)
-            except (ValueError, TypeError):
+                if isinstance(default_val, list):
+                    import ast
+
+                    params[param] = ast.literal_eval(raw)
+                else:
+                    params[param] = type(default_val)(raw)
+            except (ValueError, TypeError, SyntaxError):
                 self.console.print(
                     f"[yellow]⚠ Invalid value for {param}, using default {default_val}[/yellow]"
                 )

@@ -74,6 +74,21 @@ class TrainingSession:
         )
         return normalized_file.exists()
 
+    def _get_processed_file(self, record_name: str) -> Optional[Path]:
+        """Return the processed parquet path for a record.
+
+        Historical exports used both `<record>.parquet` and
+        `<record>_processed.parquet`, so training needs to accept either.
+        """
+        candidates = [
+            PROCESSED_DIR / record_name / f"{record_name}_processed.parquet",
+            PROCESSED_DIR / record_name / f"{record_name}.parquet",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
+
     def display_available_records(self, records: list[dict]):
         """Print a summary table of records with feature files."""
         table = Table(title="Records with Feature Files", box=box.ROUNDED)
@@ -141,7 +156,7 @@ class TrainingSession:
         y = combined[LABEL_COLUMN].to_numpy(dtype=np.int64)
 
         self.console.print(
-            f"[green]✓[/green] Dataset assembled: "
+            f"[green]OK[/green] Dataset assembled: "
             f"{X.shape[0]} windows, {X.shape[1]} features, "
             f"{int(y.sum())} apnea / {int((y == 0).sum())} non-apnea"
         )
@@ -153,8 +168,8 @@ class TrainingSession:
         for record_dir in sorted(PROCESSED_DIR.iterdir()):
             if not record_dir.is_dir():
                 continue
-            processed_file = record_dir / f"{record_dir.name}_processed.parquet"
-            if not processed_file.exists():
+            processed_file = self._get_processed_file(record_dir.name)
+            if processed_file is None:
                 continue
             try:
                 df = pd.read_parquet(processed_file)
@@ -195,10 +210,8 @@ class TrainingSession:
         all_y: list[int] = []
 
         for record_name in selected_records:
-            processed_file = (
-                PROCESSED_DIR / record_name / f"{record_name}_processed.parquet"
-            )
-            if not processed_file.exists():
+            processed_file = self._get_processed_file(record_name)
+            if processed_file is None:
                 self.console.print(
                     f"[yellow]⚠ Skipping {record_name}: processed file not found[/yellow]"
                 )
@@ -233,8 +246,8 @@ class TrainingSession:
         X = np.array(all_X, dtype=np.float64)
         y = np.array(all_y, dtype=np.int64)
         self.console.print(
-            f"[green]✓[/green] Raw dataset assembled: "
-            f"{X.shape[0]} windows × {window_size}s, "
+            f"[green]OK[/green] Raw dataset assembled: "
+            f"{X.shape[0]} windows x {window_size}s, "
             f"{int(y.sum())} apnea / {int((y == 0).sum())} non-apnea"
         )
         return X, y
