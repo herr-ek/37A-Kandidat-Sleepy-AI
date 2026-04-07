@@ -147,6 +147,98 @@ class TrainingSession:
         )
         return X, y, feature_cols
 
+    def find_records_with_processed_data(self) -> list[dict]:
+        """Scan processed directory and return records that have a processed parquet file."""
+        records = []
+        for record_dir in sorted(PROCESSED_DIR.iterdir()):
+            if not record_dir.is_dir():
+                continue
+            processed_file = record_dir / f"{record_dir.name}_processed.parquet"
+            if not processed_file.exists():
+                continue
+            try:
+                df = pd.read_parquet(processed_file)
+                has_labels = "is_apnea" in df.columns and "is_hypopnea" in df.columns
+                records.append(
+                    {
+                        "name": record_dir.name,
+                        "path": processed_file,
+                        "n_samples": len(df),
+                        "has_labels": has_labels,
+                    }
+                )
+            except Exception:
+                pass
+        return records
+
+    def build_raw_dataset(
+        self,
+        selected_records: list[str],
+        window_size: int = 60,
+        step_size: int | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Build a dataset of raw SaO2 windows from processed parquet files.
+
+        Args:
+            selected_records: Record names to include.
+            window_size: Number of samples per window (seconds at 1 Hz).
+            step_size: Stride between windows; defaults to window_size // 2.
+
+        Returns:
+            X: (n_windows, window_size) float64
+            y: (n_windows,) int64
+        """
+        if step_size is None:
+            step_size = window_size // 2
+
+        all_X: list[np.ndarray] = []
+        all_y: list[int] = []
+
+        for record_name in selected_records:
+            processed_file = (
+                PROCESSED_DIR / record_name / f"{record_name}_processed.parquet"
+            )
+            if not processed_file.exists():
+                self.console.print(
+                    f"[yellow]⚠ Skipping {record_name}: processed file not found[/yellow]"
+                )
+                continue
+            df = pd.read_parquet(processed_file).dropna()
+            if "sao2_percent" not in df.columns or "is_apnea" not in df.columns:
+                self.console.print(
+                    f"[yellow]⚠ Skipping {record_name}: missing required columns[/yellow]"
+                )
+                continue
+
+            sao2 = df["sao2_percent"].values
+            is_apnea = df["is_apnea"].values
+            is_hypopnea = df["is_hypopnea"].values
+            n = len(sao2)
+
+            for i in range(0, n - window_size + 1, step_size):
+                w = sao2[i : i + window_size]
+                a = is_apnea[i : i + window_size]
+                h = is_hypopnea[i : i + window_size]
+                label = (
+                    1
+                    if (a.sum() >= window_size / 2 or h.sum() >= window_size / 2)
+                    else 0
+                )
+                all_X.append(w)
+                all_y.append(label)
+
+        if not all_X:
+            raise ValueError("No valid processed files found for the selected records.")
+
+        X = np.array(all_X, dtype=np.float64)
+        y = np.array(all_y, dtype=np.int64)
+        self.console.print(
+            f"[green]✓[/green] Raw dataset assembled: "
+            f"{X.shape[0]} windows × {window_size}s, "
+            f"{int(y.sum())} apnea / {int((y == 0).sum())} non-apnea"
+        )
+        return X, y
+
     def split_dataset(
         self, X: np.ndarray, y: np.ndarray, test_size: float = 0.2, seed: int = 42
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -200,7 +292,8 @@ class TrainingSession:
     ):
         """Save the trained model and a JSON metadata sidecar to disk."""
         output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = output_dir / f"{model_name}.joblib"
+        ext = getattr(model, "FILE_EXTENSION", ".joblib")
+        output_path = output_dir / f"{model_name}{ext}"
         model.save(str(output_path))
 
         meta = {

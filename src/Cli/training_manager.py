@@ -61,6 +61,25 @@ def _build_model_registry() -> dict:
     except ImportError:
         pass
 
+    try:
+        try:
+            from ..Models.DeepLearning import CNN1D
+        except ImportError:
+            from Models.DeepLearning import CNN1D
+        registry["Deep (1D CNN)"] = (
+            CNN1D,
+            {
+                "window_size": 60,
+                "num_filters": 16,
+                "hidden_size": 64,
+                "num_epochs": 20,
+                "batch_size": 1024,
+                "lr": 1e-3,
+            },
+        )
+    except ImportError:
+        pass
+
     return registry
 
 
@@ -86,59 +105,107 @@ class TrainingManager:
             "\n[bold cyan]─── Model Training ───────────────────────────────[/bold cyan]"
         )
 
-        # 1. Find records that have feature files
-        all_records = self.session.find_records_with_features()
-        if not all_records:
-            self.console.print(
-                "[red]✗ No feature files found in data/processed/.\n"
-                "  Run the batch pipeline with 'Extract features' first.[/red]"
-            )
+        # 1. Model selection and hyperparameter configuration (determines data path)
+        result = self._configure_model()
+        if result is None:
             return
+        model, hyperparams = result
+        is_deep = getattr(model, "FILE_EXTENSION", ".joblib") == ".pt"
 
-        self.session.display_available_records(all_records)
-
-        labelled = [r for r in all_records if r["has_labels"]]
-        if not labelled:
-            self.console.print(
-                "[red]✗ None of the feature files contain an 'apnea_event' label column.\n"
-                "  Re-extract features with training=True.[/red]"
-            )
-            return
-
-        # 2. Select records to use
-        selected_names = questionary.checkbox(
-            "Select records to include in the training set:",
-            choices=[
-                questionary.Choice(
-                    f"{r['name']}  ({r['n_windows']} windows)", value=r["name"]
+        if is_deep:
+            # ── Deep model path: raw SaO2 windows ────────────────────────
+            all_records = self.session.find_records_with_processed_data()
+            if not all_records:
+                self.console.print(
+                    "[red]✗ No processed files found in data/processed/.[/red]"
                 )
-                for r in labelled
-            ],
-            style=self.style,
-        ).ask()
+                return
 
-        if not selected_names:
-            self.console.print("[yellow]✗ No records selected, exiting.[/yellow]")
-            return
+            labelled = [r for r in all_records if r["has_labels"]]
+            if not labelled:
+                self.console.print(
+                    "[red]✗ None of the processed files contain label columns.[/red]"
+                )
+                return
 
-        # 3. Check feature coverage; offer to fill gaps via the batch pipeline
-        self._ensure_feature_coverage(selected_names)
+            self._display_raw_records(labelled)
 
-        # 4. Build dataset
-        use_normalized = questionary.confirm(
-            "Use normalized features (if available)?", default=True, style=self.style
-        ).ask()
-        if use_normalized is None:
-            return
-        try:
-            X, y, feature_names = self.session.build_dataset(
-                selected_names, use_normalized=use_normalized
-            )
-        except ValueError as exc:
-            self.console.print(f"[red]✗ {exc}[/red]")
-            return
+            selected_names = questionary.checkbox(
+                "Select records to include in the training set:",
+                choices=[
+                    questionary.Choice(
+                        f"{r['name']}  ({r['n_samples']} samples)", value=r["name"]
+                    )
+                    for r in labelled
+                ],
+                style=self.style,
+            ).ask()
+            if not selected_names:
+                self.console.print("[yellow]✗ No records selected, exiting.[/yellow]")
+                return
 
-        # 5. Train / test split
+            window_size = hyperparams.get("window_size", 60)
+            try:
+                X, y = self.session.build_raw_dataset(
+                    selected_names, window_size=window_size
+                )
+            except ValueError as exc:
+                self.console.print(f"[red]✗ {exc}[/red]")
+                return
+            feature_names = None
+
+        else:
+            # ── Classical model path: hand-crafted features ───────────────
+            all_records = self.session.find_records_with_features()
+            if not all_records:
+                self.console.print(
+                    "[red]✗ No feature files found in data/processed/.\n"
+                    "  Run the batch pipeline with 'Extract features' first.[/red]"
+                )
+                return
+
+            self.session.display_available_records(all_records)
+
+            labelled = [r for r in all_records if r["has_labels"]]
+            if not labelled:
+                self.console.print(
+                    "[red]✗ None of the feature files contain an 'apnea_event' label column.\n"
+                    "  Re-extract features with training=True.[/red]"
+                )
+                return
+
+            selected_names = questionary.checkbox(
+                "Select records to include in the training set:",
+                choices=[
+                    questionary.Choice(
+                        f"{r['name']}  ({r['n_windows']} windows)", value=r["name"]
+                    )
+                    for r in labelled
+                ],
+                style=self.style,
+            ).ask()
+            if not selected_names:
+                self.console.print("[yellow]✗ No records selected, exiting.[/yellow]")
+                return
+
+            self._ensure_feature_coverage(selected_names)
+
+            use_normalized = questionary.confirm(
+                "Use normalized features (if available)?",
+                default=True,
+                style=self.style,
+            ).ask()
+            if use_normalized is None:
+                return
+            try:
+                X, y, feature_names = self.session.build_dataset(
+                    selected_names, use_normalized=use_normalized
+                )
+            except ValueError as exc:
+                self.console.print(f"[red]✗ {exc}[/red]")
+                return
+
+        # 3. Train / test split
         test_pct = questionary.select(
             "Test set size:",
             choices=[
@@ -155,19 +222,13 @@ class TrainingManager:
             X, y, test_size=test_pct
         )
 
-        # 6. Model selection and hyperparameter configuration
-        result = self._configure_model()
-        if result is None:
-            return
-        model, hyperparams = result
-
-        # 7. Train
+        # 4. Train
         self.session.train(model, X_train, y_train)
 
-        # 8. Evaluate
+        # 5. Evaluate
         metrics = self.session.evaluate(model, X_test, y_test)
 
-        # 9. Save
+        # 6. Save
         save = questionary.confirm("Save trained model to disk?", default=True).ask()
         if save:
             model_name = questionary.text(
@@ -189,6 +250,20 @@ class TrainingManager:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _display_raw_records(self, records: list[dict]):
+        """Print a summary table of records with processed (raw) files."""
+        from rich import box
+        from rich.table import Table
+
+        table = Table(title="Records with Processed Data", box=box.ROUNDED)
+        table.add_column("Record", style="green")
+        table.add_column("Samples", justify="right", style="cyan")
+        table.add_column("Labels", justify="center")
+        for r in records:
+            label_status = "[green]✓[/green]" if r["has_labels"] else "[red]✗[/red]"
+            table.add_row(r["name"], str(r["n_samples"]), label_status)
+        self.console.print(table)
 
     def _ensure_feature_coverage(self, selected_names: list[str]):
         """Check that all selected records have feature files; offer to extract missing ones."""
