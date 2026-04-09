@@ -213,7 +213,7 @@ def main() -> int:
             output_path = session.save_model(
                 model,
                 model_name,
-                MODELS_DIR,
+                MODELS_DIR/"batch",
                 hyperparams=hyperparams,
                 metrics=metrics,
                 records=train_records,

@@ -14,7 +14,7 @@ scikit-learn>=1.4.0
 antropy>=0.2.0
 
 # Deep Learning (uncomment if needed)
-# torch>=2.0.0
+torch>=2.0.0
 # tensorflow>=2.13.0
 
 # Data visualization
