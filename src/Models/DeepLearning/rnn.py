@@ -152,7 +152,8 @@ class RNN(IModel):
                 loss.backward()
                 optimizer.step()
                 epoch_loss += float(loss.item()) * len(Xb)
-                batch_bar.set_postfix(loss=f"{loss.item():.4f}")
+                if self.verbose:
+                    batch_bar.set_postfix(loss=f"{loss.item():.4f}")
 
             avg_loss = epoch_loss / max(len(X_t), 1)
 
@@ -170,11 +171,12 @@ class RNN(IModel):
                     f"  f1={val_f1:.3f}"
                 )
 
-            epoch_bar.set_postfix(
-                loss=f"{avg_loss:.4f}",
-                bal_acc=f"{val_ba:.3f}",
-                f1=f"{val_f1:.3f}",
-            )
+            if self.verbose:
+                epoch_bar.set_postfix(
+                    loss=f"{avg_loss:.4f}",
+                    bal_acc=f"{val_ba:.3f}",
+                    f1=f"{val_f1:.3f}",
+                )
 
     def _normalise(self, X: np.ndarray) -> np.ndarray:
         if self._input_mean is not None:
@@ -203,7 +205,7 @@ class RNN(IModel):
         return {
             "balanced_accuracy": balanced_accuracy_score(y, y_pred),
             "accuracy": accuracy_score(y, y_pred),
-            "recall_macro": recall_score(y, y_pred, average="macro"),
+            "recall": recall_score(y, y_pred, average="macro"),
             "f1_macro": f1_score(y, y_pred, average="macro"),
         }
 
