@@ -12,12 +12,11 @@
 #SBATCH --job-name=sleepy-classical
 #SBATCH --output=jobs/logs/classical_%A_%a.out
 #SBATCH --error=jobs/logs/classical_%A_%a.err
-#SBATCH --array=0-11          # 12 configurations (indices 0–11)
+#SBATCH --array=0-13          # 14 configurations (indices 0–13)
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
-#SBATCH --time=02:00:00
-# Uncomment to pin to a specific partition:
-##SBATCH --partition=main
+#SBATCH --time=01:00:00
+#SBATCH --partition=long
 
 set -euo pipefail
 

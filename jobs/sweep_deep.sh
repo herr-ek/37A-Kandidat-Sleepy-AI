@@ -15,10 +15,9 @@
 #SBATCH --array=0-23          # 24 configurations (indices 0–23)
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=01:00:00
-#SBATCH --gres=gpu:1
-# Uncomment to pin to a specific partition:
-##SBATCH --partition=gpu
+#SBATCH --time=00:30:00
+#SBATCH --partition=long
+#SBATCH --gres=gpu:L4:1
 
 set -euo pipefail
 
