@@ -15,7 +15,7 @@
 #SBATCH --array=0-23          # 24 configurations (indices 0–23)
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
-#SBATCH --time=00:30:00
+#SBATCH --time=01:30:00
 #SBATCH --partition=long
 #SBATCH --gres=gpu:L4:1
 
@@ -29,6 +29,16 @@ mkdir -p jobs/logs/$SLURM_ARRAY_JOB_ID
 
 # Activate the project virtual environment.
 source .venv/bin/activate
+
+# Add NVIDIA CUDA libraries from venv to library path
+# This allows PyTorch to find the CUDA runtime libraries
+VENV_NVIDIA_LIBS="${PWD}/.venv/lib/python3.12/site-packages/nvidia"
+if [ -d "$VENV_NVIDIA_LIBS" ]; then
+    export LD_LIBRARY_PATH="${VENV_NVIDIA_LIBS}/cu13/lib:${VENV_NVIDIA_LIBS}/cudnn/lib:${VENV_NVIDIA_LIBS}/nccl/lib:${VENV_NVIDIA_LIBS}/cusparselt/lib:${LD_LIBRARY_PATH:-}"
+fi
+
+# Diagnostic: Check if CUDA is available to PyTorch
+python -c "import torch; print(f'PyTorch CUDA available: {torch.cuda.is_available()}'); print(f'CUDA device count: {torch.cuda.device_count() if torch.cuda.is_available() else 0}')" || echo "Failed to check CUDA availability"
 
 # ==============================================================================
 # Configuration table

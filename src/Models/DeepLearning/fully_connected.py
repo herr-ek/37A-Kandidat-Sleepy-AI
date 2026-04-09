@@ -59,7 +59,8 @@ class FullyConnected(IModel):
         batch_size: int = 1024,
         lr: float = 1e-3,
         max_pos_weight: float = 10.0,
-        verbose: bool = False,
+        verbose: bool = True,
+        show_progress: bool = False,
     ):
         self.window_size = window_size
         self.hidden_sizes = hidden_sizes if hidden_sizes is not None else [128, 64]
@@ -69,6 +70,7 @@ class FullyConnected(IModel):
         self.lr = lr
         self.max_pos_weight = max_pos_weight
         self.verbose = verbose
+        self.show_progress = show_progress
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self._input_mean: np.ndarray | None = None
         self._input_std: np.ndarray | None = None
@@ -128,7 +130,7 @@ class FullyConnected(IModel):
             range(self.num_epochs),
             desc="Training",
             unit="epoch",
-            disable=not self.verbose,
+            disable=not self.show_progress,
         )
         for epoch in epoch_bar:
             epoch_loss = 0.0
@@ -137,7 +139,7 @@ class FullyConnected(IModel):
                 desc=f"  Epoch {epoch + 1}/{self.num_epochs}",
                 unit="batch",
                 leave=False,
-                disable=not self.verbose,
+                disable=not self.show_progress,
             )
             for Xb, yb in batch_bar:
                 Xb = Xb.to(self.device, non_blocking=self.device.type == "cuda")
@@ -147,7 +149,7 @@ class FullyConnected(IModel):
                 loss.backward()
                 optimizer.step()
                 epoch_loss += float(loss.item()) * len(Xb)
-                if self.verbose:
+                if self.show_progress:
                     batch_bar.set_postfix(loss=f"{loss.item():.4f}")
 
             avg_loss = epoch_loss / max(len(X_t), 1)
@@ -166,7 +168,7 @@ class FullyConnected(IModel):
                     f"  f1={val_f1:.3f}"
                 )
 
-            if self.verbose:
+            if self.show_progress:
                 epoch_bar.set_postfix(
                     loss=f"{avg_loss:.4f}",
                     bal_acc=f"{val_ba:.3f}",

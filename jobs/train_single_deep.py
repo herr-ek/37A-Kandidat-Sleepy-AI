@@ -135,6 +135,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip writing the model checkpoint and metadata sidecar.",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose output including progress bars (default: False).",
+    )
     return parser.parse_args()
 
 
@@ -171,6 +176,7 @@ def build_model(args: argparse.Namespace):
         "lr": args.lr,
         "max_pos_weight": args.max_pos_weight,
         "verbose": True,
+        "show_progress": args.verbose,
     }
 
     if args.model == "CNN1D":
