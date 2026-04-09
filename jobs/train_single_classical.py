@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -169,6 +170,22 @@ def build_model_name(args: argparse.Namespace) -> str:
     return f"{args.model.lower()}_{timestamp}"
 
 
+def get_job_id() -> str:
+    """Get the SLURM job ID from environment, or generate a timestamp-based ID."""
+    # Try SLURM_ARRAY_JOB_ID first (for array jobs)
+    job_id = os.environ.get("SLURM_ARRAY_JOB_ID")
+    if job_id:
+        return job_id
+
+    # Fall back to SLURM_JOB_ID (for single jobs)
+    job_id = os.environ.get("SLURM_JOB_ID")
+    if job_id:
+        return job_id
+
+    # If not running in SLURM, use timestamp
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -210,16 +227,19 @@ def main() -> int:
 
         if not args.no_save:
             model_name = build_model_name(args)
+            job_id = get_job_id()
+            output_dir = MODELS_DIR / "batch" / job_id
             output_path = session.save_model(
                 model,
                 model_name,
-                MODELS_DIR/"batch",
+                output_dir,
                 hyperparams=hyperparams,
                 metrics=metrics,
                 records=train_records,
                 feature_names=feature_names,
             )
             console.print(f"[green]Saved model:[/green] {output_path}")
+            console.print(f"[dim]Job ID:[/dim] {job_id}")
         else:
             console.print("[yellow]Skipping model save (--no-save).[/yellow]")
 

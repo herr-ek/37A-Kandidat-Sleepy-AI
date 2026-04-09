@@ -10,8 +10,8 @@
 # ==============================================================================
 
 #SBATCH --job-name=sleepy-classical
-#SBATCH --output=jobs/logs/classical_%A_%a.out
-#SBATCH --error=jobs/logs/classical_%A_%a.err
+#SBATCH --output=jobs/logs/%A/classical_%A_%a.out
+#SBATCH --error=jobs/logs/%A/classical_%A_%a.err
 #SBATCH --array=0-13          # 14 configurations (indices 0–13)
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
@@ -24,7 +24,7 @@ set -euo pipefail
 cd "$SLURM_SUBMIT_DIR"
 
 # Create log directory if it does not exist yet.
-mkdir -p jobs/logs
+mkdir -p jobs/logs/$SLURM_ARRAY_JOB_ID
 
 # Activate the project virtual environment.
 source .venv/bin/activate
