@@ -34,9 +34,7 @@ class BatchProcessor:
         record_dir = record.split("/")[0] if "/" in record else record
         return (PROCESSED_DIR / record_dir / f"{record_dir}_features.parquet").exists()
 
-    def _check_feature_coverage(
-        self, selected_records: list, ordered_steps: list
-    ) -> list:
+    def _check_feature_coverage(self, selected_records: list) -> list:
         """
         When extract_features is NOT in the pipeline, check that every record
         already has a feature file. Returns the list of records that are missing
@@ -63,9 +61,9 @@ class BatchProcessor:
         )
 
         # --- Pre-run feature coverage check ---
-        missing = self._check_feature_coverage(selected_records, ordered_steps)
+        missing = self._check_feature_coverage(selected_records)
         self.console.print(missing)
-        if missing:
+        if missing and "extract_features" in ordered_steps:
             self.console.print(
                 f"\n[yellow]⚠ {len(missing)} record(s) are missing feature files:[/yellow]"
             )
