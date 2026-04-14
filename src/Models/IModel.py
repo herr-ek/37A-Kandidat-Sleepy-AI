@@ -64,7 +64,7 @@ class IModel(ABC):
             "recall": recall_score(y, y_pred, average="macro"),
             "f1_macro": f1_score(y, y_pred, average="macro"),
             "confusion_matrix": confusion_matrix(
-                y, y_pred
+                y, y_pred, normalize="true"
             ),  # Placeholder for confusion matrix (can be added if needed)
         }
 

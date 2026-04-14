@@ -67,6 +67,7 @@ class CNN1D(IModel):
         max_pos_weight: float = 10.0,
         verbose: bool = True,
         show_progress: bool = False,
+        device: str | None = None,
     ):
         self.window_size = window_size
         self.num_filters = num_filters
@@ -77,7 +78,11 @@ class CNN1D(IModel):
         self.max_pos_weight = max_pos_weight
         self.verbose = verbose
         self.show_progress = show_progress
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = (
+            torch.device(device)
+            if device
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
         self._build_net()
 
     def _build_net(self):

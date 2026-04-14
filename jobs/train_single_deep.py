@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from re import X
 
+import torch
 from rich.console import Console
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -162,10 +163,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable verbose output including progress bars (default: False).",
     )
+    parser.add_argument(
+        "--use-gpu",
+        action="store_true",
+        help="Request CUDA training. Fails if no GPU is available.",
+    )
     return parser.parse_args()
 
 
-def build_model(args: argparse.Namespace):
+def build_model(args: argparse.Namespace, device: str | None = None):
     """Instantiate the requested model and return (model, hyperparams_dict)."""
     common = {
         "window_size": args.window_size,
@@ -175,6 +181,7 @@ def build_model(args: argparse.Namespace):
         "max_pos_weight": args.max_pos_weight,
         "verbose": True,
         "show_progress": args.verbose,
+        "device": device,
     }
 
     if args.model == "CNN1D":
@@ -217,6 +224,15 @@ def main() -> int:
     console = Console()
     session = TrainingSession(console)
 
+    device: str | None = None
+    if args.use_gpu:
+        if not torch.cuda.is_available():
+            console.print(
+                "[red]--use-gpu requested but no CUDA device is available.[/red]"
+            )
+            return 1
+        device = "cuda"
+
     try:
         set_dist_dir = args.set_dist_dir if args.set_dist_dir else SET_DIST_DIR
         all_records = session.find_records_with_processed_data()
@@ -247,7 +263,7 @@ def main() -> int:
             step_size=args.step_size,
         )
 
-        model, hyperparams = build_model(args)
+        model, hyperparams = build_model(args, device=device)
         hyperparams["step_size"] = args.step_size
 
         console.print(

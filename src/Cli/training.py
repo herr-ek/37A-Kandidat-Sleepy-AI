@@ -12,6 +12,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import questionary
 from rich import box
 from rich.console import Console
@@ -52,14 +53,16 @@ class TrainingSession:
             if not feature_file.exists():
                 continue
             try:
-                df = pd.read_parquet(feature_file)
-                has_labels = LABEL_COLUMN in df.columns
+                meta = pq.read_metadata(feature_file)
+                schema = pq.read_schema(feature_file)
+                col_names = schema.names
+                has_labels = LABEL_COLUMN in col_names
                 has_normalized = self._check_normalized(record_dir.name)
                 records.append(
                     {
                         "name": record_dir.name,
                         "path": feature_file,
-                        "n_windows": len(df),
+                        "n_windows": meta.num_rows,
                         "has_normalized": has_normalized,
                         "has_labels": has_labels,
                     }
@@ -173,13 +176,14 @@ class TrainingSession:
             if processed_file is None:
                 continue
             try:
-                df = pd.read_parquet(processed_file)
-                has_labels = "is_apnea" in df.columns and "is_hypopnea" in df.columns
+                meta = pq.read_metadata(processed_file)
+                col_names = pq.read_schema(processed_file).names
+                has_labels = "is_apnea" in col_names and "is_hypopnea" in col_names
                 records.append(
                     {
                         "name": record_dir.name,
                         "path": processed_file,
-                        "n_samples": len(df),
+                        "n_samples": meta.num_rows,
                         "has_labels": has_labels,
                     }
                 )

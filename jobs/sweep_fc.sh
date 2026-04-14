@@ -13,7 +13,7 @@
 #SBATCH --output=jobs/logs/%A/fcnn_%A_%a.out
 #SBATCH --error=jobs/logs/%A/fcnn_%A_%a.err
 #SBATCH --array=0-23          # 24 configurations (indices 0–23)
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=00:30:00
 #SBATCH --partition=short
@@ -95,6 +95,7 @@ python jobs/train_single_deep.py \
     --model "$MODEL" \
     "${EXTRA[@]}" \
     --epochs 20 \
-    --batch-size 1024
+    --batch-size 1024 \
+    --use-gpu
 
 echo "Finished : $(date)"

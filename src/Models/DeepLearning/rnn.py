@@ -62,6 +62,7 @@ class RNN(IModel):
         max_pos_weight: float = 10.0,
         verbose: bool = True,
         show_progress: bool = False,
+        device: str | None = None,
     ):
         self.window_size = window_size
         self.hidden_size = hidden_size
@@ -73,7 +74,11 @@ class RNN(IModel):
         self.max_pos_weight = max_pos_weight
         self.verbose = verbose
         self.show_progress = show_progress
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = (
+            torch.device(device)
+            if device
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
         self._input_mean: np.ndarray | None = None
         self._input_std: np.ndarray | None = None
         self._build_net()

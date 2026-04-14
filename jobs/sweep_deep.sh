@@ -102,6 +102,7 @@ python jobs/train_single_deep.py \
     --model "$MODEL" \
     "${EXTRA[@]}" \
     --epochs 20 \
-    --batch-size 1024
+    --batch-size 1024 \
+    --use-gpu
 
 echo "Finished : $(date)"
