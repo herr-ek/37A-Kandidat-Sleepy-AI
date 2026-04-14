@@ -12,7 +12,7 @@
 #SBATCH --job-name=sleepy-fcnn
 #SBATCH --output=jobs/logs/%A/fcnn_%A_%a.out
 #SBATCH --error=jobs/logs/%A/fcnn_%A_%a.err
-#SBATCH --array=0-11          # 12 configurations (indices 0–11)
+#SBATCH --array=0-23          # 24 configurations (indices 0–23)
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=16G
 #SBATCH --time=00:30:00
@@ -45,23 +45,36 @@ python -c "import torch; print(f'PyTorch CUDA available: {torch.cuda.is_availabl
 #
 # Each entry: "MODEL --flag value ..."
 #
-# FullyConnected (rows 0–11):
-#   window_size ∈ {30, 60, 90}  ×  hidden_sizes ∈ {128x64, 256x128}  ×  dropout ∈ {0.2, 0.3}
+# FullyConnected (rows 0–23):
+#   window_size ∈ {30, 60, 90}  ×  hidden_sizes ∈ {128x64, 256x128}  ×  dropout ∈ {0.2, 0.3} ×  max_pos_weight ∈ {10.0, 15.0}
+
 # ==============================================================================
 CONFIGS=(
     # FullyConnected
     "FullyConnected --window-size 30 --hidden-sizes 128,64  --dropout 0.2"
+    "FullyConnected --window-size 30 --hidden-sizes 128,64  --dropout 0.2 --max-pos-weight 15.0"
     "FullyConnected --window-size 30 --hidden-sizes 128,64  --dropout 0.3"
+    "FullyConnected --window-size 30 --hidden-sizes 128,64  --dropout 0.3 --max-pos-weight 15.0"
     "FullyConnected --window-size 30 --hidden-sizes 256,128 --dropout 0.2"
+    "FullyConnected --window-size 30 --hidden-sizes 256,128 --dropout 0.2 --max-pos-weight 15.0"
     "FullyConnected --window-size 30 --hidden-sizes 256,128 --dropout 0.3"
+    "FullyConnected --window-size 30 --hidden-sizes 256,128 --dropout 0.3 --max-pos-weight 15.0"
     "FullyConnected --window-size 60 --hidden-sizes 128,64  --dropout 0.2"
+    "FullyConnected --window-size 60 --hidden-sizes 128,64  --dropout 0.2 --max-pos-weight 15.0"
     "FullyConnected --window-size 60 --hidden-sizes 128,64  --dropout 0.3"
+    "FullyConnected --window-size 60 --hidden-sizes 128,64  --dropout 0.3 --max-pos-weight 15.0"
     "FullyConnected --window-size 60 --hidden-sizes 256,128 --dropout 0.2"
+    "FullyConnected --window-size 60 --hidden-sizes 256,128 --dropout 0.2 --max-pos-weight 15.0"
     "FullyConnected --window-size 60 --hidden-sizes 256,128 --dropout 0.3"
+    "FullyConnected --window-size 60 --hidden-sizes 256,128 --dropout 0.3 --max-pos-weight 15.0"
     "FullyConnected --window-size 90 --hidden-sizes 128,64  --dropout 0.2"
+    "FullyConnected --window-size 90 --hidden-sizes 128,64  --dropout 0.2 --max-pos-weight 15.0"
     "FullyConnected --window-size 90 --hidden-sizes 128,64  --dropout 0.3"
+    "FullyConnected --window-size 90 --hidden-sizes 128,64  --dropout 0.3 --max-pos-weight 15.0"
     "FullyConnected --window-size 90 --hidden-sizes 256,128 --dropout 0.2"
+    "FullyConnected --window-size 90 --hidden-sizes 256,128 --dropout 0.2 --max-pos-weight 15.0"
     "FullyConnected --window-size 90 --hidden-sizes 256,128 --dropout 0.3"
+    "FullyConnected --window-size 90 --hidden-sizes 256,128 --dropout 0.3 --max-pos-weight 15.0"
 )
 
 
