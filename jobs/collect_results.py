@@ -46,7 +46,7 @@ def collect_model_results(models_dir: Path) -> pd.DataFrame:
                 "Model Type": data.get("model", "Unknown"),
                 "Hyperparameters": hyperparam_str,
                 "Accuracy": evaluation.get("accuracy", None),
-                "Recall": evaluation.get("recall_macro", None),
+                "Recall": evaluation.get("recall", None),
                 "F1 Macro": evaluation.get("f1_macro", None),
                 "Saved At": data.get("saved_at", "Unknown"),
                 "Num Records": len(data.get("records", [])),

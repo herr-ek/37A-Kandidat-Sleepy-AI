@@ -9,6 +9,7 @@ from pathlib import Path
 from rich.console import Console
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+SET_DIST_DIR = ROOT_DIR / "set_distribution"
 
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
@@ -34,7 +35,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--records",
         nargs="+",
-        help="Record IDs to include. Defaults to all processed records with labels.",
+        help="Optional whitelist of record IDs. When given, only these records are used from training_set.txt.",
+    )
+    parser.add_argument(
+        "--set-dist-dir",
+        type=Path,
+        default=None,
+        help="Directory containing training_set.txt and test_set.txt. Defaults to <root>/set_distribution/.",
     )
     parser.add_argument(
         "--window-size",
@@ -113,18 +120,7 @@ def parse_args() -> argparse.Namespace:
         default=10.0,
         help="Maximum positive class weight for BCEWithLogitsLoss (default: 10.0).",
     )
-    parser.add_argument(
-        "--test-size",
-        type=float,
-        default=0.2,
-        help="Fraction of samples reserved for evaluation (default: 0.2).",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Random seed for the train/test split (default: 42).",
-    )
+
     parser.add_argument(
         "--model-name",
         default=None,
@@ -143,28 +139,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def select_records(
-    session: TrainingSession, requested_records: list[str] | None
-) -> list[str]:
-    available = session.find_records_with_processed_data()
-    labelled = [record["name"] for record in available if record["has_labels"]]
+def load_predefined_split(
+    available_records: set[str],
+    set_dist_dir: Path,
+    record_filter: list[str] | None,
+) -> tuple[list[str], list[str]]:
+    """Read training_set.txt and test_set.txt and return (train_records, test_records)
+    restricted to records that have processed data files."""
 
-    if not labelled:
+    def _read(path: Path) -> list[str]:
+        return [line.strip() for line in path.read_text().splitlines() if line.strip()]
+
+    train_all = _read(set_dist_dir / "training_set.txt")
+    test_all = _read(set_dist_dir / "test_set.txt")
+
+    train_records = [r for r in train_all if r in available_records]
+    test_records = [r for r in test_all if r in available_records]
+
+    if record_filter is not None:
+        filter_set = set(record_filter)
+        train_records = [r for r in train_records if r in filter_set]
+
+    if not train_records:
         raise ValueError(
-            "No processed records with labels were found in data/processed."
+            "No training records with processed data found in training_set.txt."
         )
+    if not test_records:
+        raise ValueError("No test records with processed data found in test_set.txt.")
 
-    if requested_records is None:
-        return labelled
-
-    available_set = set(labelled)
-    missing = [record for record in requested_records if record not in available_set]
-    if missing:
-        raise ValueError(
-            "Requested record(s) are missing processed label data: "
-            + ", ".join(missing)
-        )
-    return requested_records
+    return train_records, test_records
 
 
 def build_model(args: argparse.Namespace):
@@ -250,28 +253,31 @@ def main() -> int:
     session = TrainingSession(console)
 
     try:
-        selected_records = select_records(session, args.records)
+        set_dist_dir = args.set_dist_dir if args.set_dist_dir else SET_DIST_DIR
+        all_records = session.find_records_with_processed_data()
+        available = {r["name"] for r in all_records if r["has_labels"]}
+
+        train_records, test_records = load_predefined_split(
+            available, set_dist_dir, args.records
+        )
         console.print(
-            f"[cyan]Using {len(selected_records)} record(s):[/cyan] {', '.join(selected_records[:10])}"
-            + (" ..." if len(selected_records) > 10 else "")
+            f"[cyan]Train:[/cyan] {len(train_records)} record(s)  "
+            f"[cyan]Test:[/cyan] {len(test_records)} record(s)"
         )
 
-        X, y = session.build_raw_dataset(
-            selected_records,
+        X_train, y_train = session.build_raw_dataset(
+            train_records,
             window_size=args.window_size,
             step_size=args.step_size,
         )
-        X_train, X_test, y_train, y_test = session.split_dataset(
-            X,
-            y,
-            test_size=args.test_size,
-            seed=args.seed,
+        X_test, y_test = session.build_raw_dataset(
+            test_records,
+            window_size=args.window_size,
+            step_size=args.step_size,
         )
 
         model, hyperparams = build_model(args)
         hyperparams["step_size"] = args.step_size
-        hyperparams["test_size"] = args.test_size
-        hyperparams["seed"] = args.seed
 
         console.print(
             f"[cyan]Model:[/cyan] {args.model}  |  [cyan]Device:[/cyan] {model.device}"
@@ -289,7 +295,7 @@ def main() -> int:
                 output_dir,
                 hyperparams=hyperparams,
                 metrics=metrics,
-                records=selected_records,
+                records=train_records,
             )
             console.print(f"[green]Saved model:[/green] {output_path}")
             console.print(f"[dim]Job ID:[/dim] {job_id}")
