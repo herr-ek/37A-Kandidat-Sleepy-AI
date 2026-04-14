@@ -21,6 +21,28 @@ from train_utils import build_model_name, get_job_id, load_predefined_split
 from src.Cli.config import MODELS_DIR
 from src.Cli.training import TrainingSession
 
+"""
+Train a single deep learning model on the SaO2 feature files. Uses the same predefined train/test/validate split as train_single_classical.py.
+params:
+    --model: Which deep model to train (default: Fully Connected).
+    --records: Optional whitelist of record IDs. When given, only these records are used from training_set.txt.
+    --set-dist-dir: Directory containing training_set.txt and test_set.txt. Defaults to <root>/set_distribution/.
+    --window-size: Window size in samples/seconds for raw SaO2 windows (default: 60).
+    --step-size: Stride between windows. Defaults to window_size // 2.
+    --num-filters: [CNN1D] Filters in the first convolution layer (default: 16).
+    --hidden-size: [CNN1D] FC layer size after conv blocks; [RNN] GRU hidden size (default: 64).
+    --hidden-sizes: [FullyConnected] Comma-separated list of hidden layer sizes (default: 128,64).
+    --dropout: [FullyConnected / RNN] Dropout probability (default: 0.3).
+    --num-layers: [RNN] Number of GRU layers (default: 2).
+    --epochs: Number of training epochs (default: 20).
+    --batch-size: Training batch size (default: 1024).
+    --lr: Adam learning rate (default: 1e-3).
+    --max-pos-weight: Maximum positive class weight for BCEWithLogitsLoss (default: 10.0).
+    --model-name: Output model name without extension. Defaults to a descriptive timestamped name.
+    --no-save: Skip writing the model checkpoint and metadata sidecar.
+    --verbose: Enable verbose output including progress bars (default: False).
+"""
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -30,9 +52,9 @@ def parse_args() -> argparse.Namespace:
     # --- Model selection ---
     parser.add_argument(
         "--model",
-        default="CNN1D",
+        default="FullyConnected",
         choices=["CNN1D", "FullyConnected", "RNN"],
-        help="Which deep model to train (default: CNN1D).",
+        help="Which deep model to train (default: FullyConnected).",
     )
 
     # --- Data ---
