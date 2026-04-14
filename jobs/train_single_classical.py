@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from rich.console import Console
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+JOBS_DIR = Path(__file__).resolve().parent
 SET_DIST_DIR = ROOT_DIR / "set_distribution"
 
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
+if str(JOBS_DIR) not in sys.path:
+    sys.path.insert(0, str(JOBS_DIR))
+
+from train_utils import build_model_name, get_job_id, load_predefined_split
 
 from src.Cli.config import MODELS_DIR
 from src.Cli.training import TrainingSession
@@ -120,70 +123,6 @@ def build_model(args: argparse.Namespace):
         return SVM(**hyperparams), hyperparams
 
     raise ValueError(f"Unknown model: {args.model}")
-
-
-def load_predefined_split(
-    available_records: set[str],
-    set_dist_dir: Path,
-    record_filter: list[str] | None,
-) -> tuple[list[str], list[str]]:
-    """Read training_set.txt and test_set.txt and return (train_records, test_records)
-    restricted to records that have labelled feature files."""
-
-    def _read(path: Path) -> list[str]:
-        return [l.strip() for l in path.read_text().splitlines() if l.strip()]
-
-    train_all = _read(set_dist_dir / "training_set.txt")
-    test_all = _read(set_dist_dir / "test_set.txt")
-
-    train_records = [r for r in train_all if r in available_records]
-    test_records = [r for r in test_all if r in available_records]
-
-    if record_filter is not None:
-        filter_set = set(record_filter)
-        train_records = [r for r in train_records if r in filter_set]
-
-    if not train_records:
-        raise ValueError(
-            "No training records with labelled feature files found in training_set.txt."
-        )
-    if not test_records:
-        raise ValueError(
-            "No test records with labelled feature files found in test_set.txt."
-        )
-
-    return train_records, test_records
-
-
-def build_model_name(args: argparse.Namespace) -> str:
-    if args.model_name:
-        return args.model_name
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    suffix = "norm" if args.normalized else "raw"
-    if args.model == "KNN":
-        return f"knn_k{args.n_neighbors}_{suffix}_{timestamp}"
-    if args.model == "RandomForest":
-        return f"rf_n{args.n_estimators}_d{args.max_depth}_{suffix}_{timestamp}"
-    if args.model == "SVM":
-        c_str = str(args.C).replace(".", "p")
-        return f"svm_C{c_str}_{suffix}_{timestamp}"
-    return f"{args.model.lower()}_{timestamp}"
-
-
-def get_job_id() -> str:
-    """Get the SLURM job ID from environment, or generate a timestamp-based ID."""
-    # Try SLURM_ARRAY_JOB_ID first (for array jobs)
-    job_id = os.environ.get("SLURM_ARRAY_JOB_ID")
-    if job_id:
-        return job_id
-
-    # Fall back to SLURM_JOB_ID (for single jobs)
-    job_id = os.environ.get("SLURM_JOB_ID")
-    if job_id:
-        return job_id
-
-    # If not running in SLURM, use timestamp
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def main() -> int:

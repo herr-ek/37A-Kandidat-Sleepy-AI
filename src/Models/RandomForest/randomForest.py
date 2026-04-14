@@ -15,7 +15,7 @@ class RandomForest(IModel):
         self, n_estimators: int = 101, max_depth: int = 10, random_state: int = 42
     ):
         self.model = RandomForestClassifier(
-            n_estimators=n_estimators, max_depth=max_depth, random_state=random_state
+            n_estimators=n_estimators, max_depth=max_depth, random_state=random_state, n_jobs=-1
         )
 
     def train(self, X: np.ndarray, y: np.ndarray) -> None:

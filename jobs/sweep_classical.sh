@@ -12,7 +12,7 @@
 #SBATCH --job-name=sleepy-classical
 #SBATCH --output=jobs/logs/%A/classical_%A_%a.out
 #SBATCH --error=jobs/logs/%A/classical_%A_%a.err
-#SBATCH --array=0-13          # 14 configurations (indices 0–13)
+#SBATCH --array=0-22          # 23 configurations (indices 0–22)
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
@@ -35,9 +35,9 @@ source .venv/bin/activate
 # Each entry is a space-separated string:
 #   "MODEL [--flag value ...]"
 #
-# Rows 0–4:   KNN  (k = 3, 5, 7, 11, 15)
-# Rows 5–10:   RandomForest  (n_estimators × max_depth grid)
-# Rows 11–13:  SVM  (C = 0.1, 1.0, 10.0)
+# Rows 0–9:   KNN  (k = 3, 5, 7, 11, 15, 21, 51, 101, 201)
+# Rows 10–18:   RandomForest  n_estimators ∈ {50, 100, 200}  ×  max_depth ∈ {10, 15, 20}
+# Rows 19–22:  SVM  C ∈ {0.01, 0.1, 1.0, 10.0}
 # ==============================================================================
 CONFIGS=(
     "KNN --n-neighbors 3"
@@ -45,12 +45,20 @@ CONFIGS=(
     "KNN --n-neighbors 7"
     "KNN --n-neighbors 11"
     "KNN --n-neighbors 15"
+    "KNN --n-neighbors 21"
+    "KNN --n-neighbors 51"
+    "KNN --n-neighbors 101"
+    "KNN --n-neighbors 201"
     "RandomForest --n-estimators 50  --max-depth 10"
+    "RandomForest --n-estimators 50  --max-depth 15"
     "RandomForest --n-estimators 50  --max-depth 20"
     "RandomForest --n-estimators 100 --max-depth 10"
+    "RandomForest --n-estimators 100 --max-depth 15"
     "RandomForest --n-estimators 100 --max-depth 20"
     "RandomForest --n-estimators 200 --max-depth 10"
+    "RandomForest --n-estimators 200 --max-depth 15"
     "RandomForest --n-estimators 200 --max-depth 20"
+    "SVM --C 0.01"
     "SVM --C 0.1"
     "SVM --C 1.0"
     "SVM --C 10.0"
