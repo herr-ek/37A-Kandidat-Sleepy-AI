@@ -40,14 +40,20 @@ def collect_model_results(models_dir: Path) -> pd.DataFrame:
 
             # Extract evaluation metrics
             evaluation = data.get("evaluation", {})
+            cm = evaluation.get("confusion_matrix")
 
             result = {
                 "Model File": json_file.stem,
                 "Model Type": data.get("model", "Unknown"),
                 "Hyperparameters": hyperparam_str,
+                "Balanced Accuracy": evaluation.get("balanced_accuracy", None),
                 "Accuracy": evaluation.get("accuracy", None),
                 "Recall": evaluation.get("recall", None),
                 "F1 Macro": evaluation.get("f1_macro", None),
+                "TN": cm[0][0] if cm else None,
+                "FP": cm[0][1] if cm else None,
+                "FN": cm[1][0] if cm else None,
+                "TP": cm[1][1] if cm else None,
                 "Saved At": data.get("saved_at", "Unknown"),
                 "Num Records": len(data.get("records", [])),
             }
@@ -83,7 +89,7 @@ def display_results(
         df = df.sort_values(by=sort_by, ascending=ascending)
 
     # Format numeric columns to 4 decimal places
-    for col in ["Accuracy", "Recall", "F1 Macro"]:
+    for col in ["Balanced Accuracy", "Accuracy", "Recall", "F1 Macro"]:
         if col in df.columns:
             df[col] = df[col].apply(lambda x: f"{x:.4f}" if pd.notna(x) else "N/A")
 
@@ -139,7 +145,14 @@ def main():
         "--sort-by",
         type=str,
         default="F1 Macro",
-        choices=["Accuracy", "Recall", "F1 Macro", "Model Type", "Model File"],
+        choices=[
+            "Balanced Accuracy",
+            "Accuracy",
+            "Recall",
+            "F1 Macro",
+            "Model Type",
+            "Model File",
+        ],
         help="Column to sort results by (default: F1 Macro)",
     )
     parser.add_argument(

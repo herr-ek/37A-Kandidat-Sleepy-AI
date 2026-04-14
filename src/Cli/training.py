@@ -16,6 +16,7 @@ import questionary
 from rich import box
 from rich.console import Console
 from rich.table import Table
+from sklearn.metrics import confusion_matrix
 
 try:
     from ..Models import IModel
@@ -302,8 +303,20 @@ class TrainingSession:
         table.add_column("Metric", style="cyan")
         table.add_column("Value", justify="right", style="green")
         for name, value in metrics.items():
+            if name == "confusion_matrix":
+                continue
             table.add_row(name, f"{value:.4f}")
         self.console.print(table)
+
+        confusion_matrix = Table(title="Confusion Matrix", box=box.SIMPLE)
+        confusion_matrix.add_column("", style="dim")
+        confusion_matrix.add_column("Predicted 0", style="green")
+        confusion_matrix.add_column("Predicted 1", style="red")
+        cm = metrics.get("confusion_matrix")
+        if cm is not None:
+            confusion_matrix.add_row("Actual 0", str(cm[0, 0]), str(cm[0, 1]))
+            confusion_matrix.add_row("Actual 1", str(cm[1, 0]), str(cm[1, 1]))
+            self.console.print(confusion_matrix)
         return metrics
 
     def save_model(
@@ -326,7 +339,10 @@ class TrainingSession:
             "model": type(model).__name__,
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "hyperparameters": hyperparams or {},
-            "evaluation": {k: round(float(v), 6) for k, v in (metrics or {}).items()},
+            "evaluation": {
+                k: (v.tolist() if hasattr(v, "tolist") else round(float(v), 6))
+                for k, v in (metrics or {}).items()
+            },
             "records": records or [],
             "features": feature_names or [],
         }

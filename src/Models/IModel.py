@@ -4,6 +4,7 @@ import numpy as np
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
+    confusion_matrix,
     f1_score,
     recall_score,
 )
@@ -62,6 +63,9 @@ class IModel(ABC):
             "accuracy": accuracy_score(y, y_pred),
             "recall": recall_score(y, y_pred, average="macro"),
             "f1_macro": f1_score(y, y_pred, average="macro"),
+            "confusion_matrix": confusion_matrix(
+                y, y_pred
+            ),  # Placeholder for confusion matrix (can be added if needed)
         }
 
     @abstractmethod
