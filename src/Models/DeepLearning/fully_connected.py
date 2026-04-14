@@ -83,14 +83,19 @@ class FullyConnected(IModel):
             dropout=self.dropout,
         ).to(self.device)
 
-    def train(self, X: np.ndarray, y: np.ndarray) -> None:
-        from sklearn.model_selection import train_test_split
+    def train(
+        self,
+        X_tr: np.ndarray,
+        y_tr: np.ndarray,
+        X_val: np.ndarray = None,
+        y_val: np.ndarray = None,
+    ) -> None:
+        if X_val is None or y_val is None:
+            from sklearn.model_selection import train_test_split
 
-        # Hold out 10 % for per-epoch validation (stratified so both splits have apnea)
-        X_tr, X_val, y_tr, y_val = train_test_split(
-            X, y, test_size=0.1, random_state=42, stratify=y
-        )
-
+            X_tr, X_val, y_tr, y_val = train_test_split(
+                X_tr, y_tr, test_size=0.1, random_state=42, stratify=y_tr
+            )
         # Fit input normalisation on training split only
         self._input_mean = X_tr.mean(axis=0)
         self._input_std = X_tr.std(axis=0) + 1e-8
@@ -100,7 +105,6 @@ class FullyConnected(IModel):
         X_t = torch.tensor(X_tr_n, dtype=torch.float32)
         y_t = torch.tensor(y_tr, dtype=torch.float32)
         X_val_t = torch.tensor(X_val_n, dtype=torch.float32)
-
         loader = DataLoader(
             TensorDataset(X_t, y_t),
             batch_size=self.batch_size,
@@ -196,15 +200,6 @@ class FullyConnected(IModel):
     def predict(self, X: np.ndarray) -> np.ndarray:
         X_t = torch.tensor(self._normalise(X), dtype=torch.float32)
         return self._infer_batched(X_t)
-
-    def evaluate(self, X: np.ndarray, y: np.ndarray) -> dict:
-        y_pred = self.predict(X)
-        return {
-            "balanced_accuracy": balanced_accuracy_score(y, y_pred),
-            "accuracy": accuracy_score(y, y_pred),
-            "recall": recall_score(y, y_pred, average="macro"),
-            "f1_macro": f1_score(y, y_pred, average="macro"),
-        }
 
     def save(self, file_path: str) -> None:
         torch.save(

@@ -46,6 +46,15 @@ except ImportError:
     from ui import CLI_UI
     from utils import get_questionary_style, set_custom_directory
 
+try:
+    from ..Data_management.generate_sets import generate_sets
+except ImportError:
+    import os as _os
+    import sys as _sys
+
+    _sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from Data_management.generate_sets import generate_sets
+
 
 class SleepDataPipeline:
     """Main pipeline controller for sleep data analysis."""
@@ -110,6 +119,10 @@ class SleepDataPipeline:
         elif choice == "train":
             self.training_manager.run()
             # Return to main menu after training completes
+            self.choose_data_source()
+            return
+        elif choice == "generate_sets":
+            self._handle_generate_sets()
             self.choose_data_source()
             return
         elif choice == "download":
@@ -383,6 +396,70 @@ class SleepDataPipeline:
             self.downloader.download_range_records()
         elif download_type == "all_training":
             self.downloader.download_all_training()
+
+    def _handle_generate_sets(self):
+        """Generate train/test/validate set distribution from processed records."""
+        import questionary
+
+        train_ratio, test_ratio, validate_ratio = 0.8, 0.1, 0.1
+
+        self.console.print("\n[bold cyan]Generate Set Distribution[/bold cyan]")
+
+        use_custom = questionary.confirm(
+            f"Use default split (train={int(train_ratio*100)}% / test={int(test_ratio*100)}% / validate={int(validate_ratio*100)}%)? "
+            "Select 'No' to customise.",
+            default=True,
+        ).ask()
+        if use_custom is None:
+            return
+
+        if not use_custom:
+            while True:
+                raw = questionary.text(
+                    "Enter train/test/validate split as percentages (e.g. 70 20 10):",
+                    validate=lambda v: (
+                        True
+                        if len(v.split()) == 3
+                        and all(p.replace(".", "", 1).isdigit() for p in v.split())
+                        and abs(sum(float(p) for p in v.split()) - 100) < 0.01
+                        else "Enter three numbers that sum to 100"
+                    ),
+                ).ask()
+                if raw is None:
+                    return
+                parts = [float(p) / 100 for p in raw.split()]
+                train_ratio, test_ratio, validate_ratio = parts[0], parts[1], parts[2]
+                break
+
+        self.console.print(
+            f"[dim]Split: train={int(train_ratio*100)}% / test={int(test_ratio*100)}% / validate={int(validate_ratio*100)}%[/dim]"
+        )
+
+        save = questionary.confirm(
+            "Save the generated sets to set_distribution/?", default=True
+        ).ask()
+        if save is None:
+            return
+
+        try:
+            train, test, validate = generate_sets(
+                save=save,
+                train=train_ratio,
+                test=test_ratio,
+                validate=validate_ratio,
+            )
+            self.console.print(
+                f"[green]✓[/green] Generated sets: "
+                f"[cyan]train[/cyan]={len(train)}, "
+                f"[cyan]test[/cyan]={len(test)}, "
+                f"[cyan]validate[/cyan]={len(validate)}"
+            )
+            if save:
+                self.console.print(
+                    "[green]✓[/green] Saved to [dim]set_distribution/[/dim]"
+                )
+        except Exception as e:
+            self.console.print(f"[red]✗ Failed to generate sets: {e}[/red]")
 
 
 def main():

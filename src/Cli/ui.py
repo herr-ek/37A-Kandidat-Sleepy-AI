@@ -48,6 +48,10 @@ class CLI_UI:
                 ),
                 questionary.Separator("── Other ─────────────────────────────"),
                 questionary.Choice(
+                    "🎲 Generate train/test/validate set distribution",
+                    value="generate_sets",
+                ),
+                questionary.Choice(
                     "⬇️  Download data from PhysioNet (OBS. download speed capped to ~1.5 MB/s)",
                     value="download",
                 ),

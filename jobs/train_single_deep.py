@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from re import X
 
 from rich.console import Console
 
@@ -199,16 +200,22 @@ def main() -> int:
         all_records = session.find_records_with_processed_data()
         available = {r["name"] for r in all_records if r["has_labels"]}
 
-        train_records, test_records = load_predefined_split(
+        train_records, test_records, validate_records = load_predefined_split(
             available, set_dist_dir, args.records
         )
         console.print(
             f"[cyan]Train:[/cyan] {len(train_records)} record(s)  "
-            f"[cyan]Test:[/cyan] {len(test_records)} record(s)"
+            f"[cyan]Test:[/cyan] {len(test_records)} record(s)  "
+            f"[cyan]Validate:[/cyan] {len(validate_records)} record(s)"
         )
 
         X_train, y_train = session.build_raw_dataset(
             train_records,
+            window_size=args.window_size,
+            step_size=args.step_size,
+        )
+        X_val, y_val = session.build_raw_dataset(
+            validate_records,
             window_size=args.window_size,
             step_size=args.step_size,
         )
@@ -224,7 +231,7 @@ def main() -> int:
         console.print(
             f"[cyan]Model:[/cyan] {args.model}  |  [cyan]Device:[/cyan] {model.device}"
         )
-        session.train(model, X_train, y_train)
+        session.train(model, X_train, y_train, X_val, y_val)
         metrics = session.evaluate(model, X_test, y_test)
 
         if not args.no_save:

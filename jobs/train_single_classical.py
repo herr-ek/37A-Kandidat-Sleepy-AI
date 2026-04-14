@@ -140,9 +140,11 @@ def main() -> int:
         all_records = session.find_records_with_features()
         available = {r["name"] for r in all_records if r["has_labels"]}
 
-        train_records, test_records = load_predefined_split(
+        train_records, test_records, validation_records = load_predefined_split(
             available, set_dist_dir, args.records
         )
+
+        train_records = train_records + validation_records
         console.print(
             f"[cyan]Train:[/cyan] {len(train_records)} record(s)  "
             f"[cyan]Test:[/cyan] {len(test_records)} record(s)"

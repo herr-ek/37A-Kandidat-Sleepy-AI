@@ -9,18 +9,31 @@ TEST = 0.1
 VALIDATE = 0.1
 
 
-def generate_sets(save=True) -> tuple[list[str], list[str], list[str]]:
+def generate_sets(
+    save=True,
+    train: float = TRAIN,
+    test: float = TEST,
+    validate: float = VALIDATE,
+) -> tuple[list[str], list[str], list[str]]:
     all_dirs = os.listdir(DATA_LOCATION)
     shuffle(all_dirs)
 
-    return split_and_save_sets(save, all_dirs)
+    return split_and_save_sets(
+        save, all_dirs, train=train, test=test, validate=validate
+    )
 
 
-def split_and_save_sets(save, all_dirs: list[str]):
+def split_and_save_sets(
+    save,
+    all_dirs: list[str],
+    train: float = TRAIN,
+    test: float = TEST,
+    validate: float = VALIDATE,
+):
     n = len(all_dirs)
-    training_set = all_dirs[: int(n * TRAIN)]
-    test_set = all_dirs[int(n * TRAIN) : int(n * (TRAIN + TEST))]
-    validate_set = all_dirs[int(n * (TRAIN + TEST)) :]
+    training_set = all_dirs[: int(n * train)]
+    test_set = all_dirs[int(n * train) : int(n * (train + test))]
+    validate_set = all_dirs[int(n * (train + test)) :]
 
     if save:
         with open(f"{SET_LOCATION}/training_set.txt", "w") as f:

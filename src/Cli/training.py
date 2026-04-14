@@ -270,18 +270,31 @@ class TrainingSession:
     # Training & evaluation
     # ------------------------------------------------------------------
 
-    def train(self, model: IModel, X_train: np.ndarray, y_train: np.ndarray):
+    def train(
+        self,
+        model: IModel,
+        X_train: np.ndarray,
+        y_train: np.ndarray,
+        X_val: np.ndarray = None,
+        y_val: np.ndarray = None,
+    ) -> IModel:
         """Fit the model and report."""
         self.console.print("\n[bold cyan]Training model...[/bold cyan]")
-        model.train(X_train, y_train)
+        model.train(X_train, y_train, X_val, y_val)
         self.console.print("[green]✓[/green] Training complete.")
         return model
 
-    def evaluate(self, model: IModel, X_test: np.ndarray, y_test: np.ndarray):
+    def evaluate(self, model: IModel, X_test: np.ndarray, y_test: np.ndarray) -> dict:
         """Evaluate the model and display a results table.
 
         Returns:
-            metrics: Dict of metric names and values."""
+            metrics: Dict of metric names and values.
+                - "balanced_accuracy": Balanced accuracy score.
+                - "accuracy": Accuracy score.
+                - "recall": Macro-averaged recall score.
+                - "f1_macro": Macro-averaged F1 score.
+        """
+
         self.console.print("\n[bold cyan]Evaluating model...[/bold cyan]")
         metrics = model.evaluate(X_test, y_test)
 

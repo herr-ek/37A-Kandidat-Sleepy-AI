@@ -3,6 +3,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from attr import validate
+from matplotlib.rcsetup import validate_fontstretch
+
 from src.Cli.training import TrainingSession
 
 
@@ -50,18 +53,29 @@ def load_predefined_split(
     available_records: set[str],
     set_dist_dir: Path,
     record_filter: list[str] | None,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str]]:
     """Read training_set.txt and test_set.txt and return (train_records, test_records)
-    restricted to records that have processed data files."""
+    restricted to records that have processed data files.
+
+    If record_filter is given, further restrict to only those records (as a whitelist).
+
+    Returns:
+        Tuple of (train_records, test_records, validate_records), where each is a list of record IDs.
+    Raises:
+        ValueError if no records with processed data are found in either split, or if record_filter
+
+    """
 
     def _read(path: Path) -> list[str]:
         return [line.strip() for line in path.read_text().splitlines() if line.strip()]
 
     train_all = _read(set_dist_dir / "training_set.txt")
     test_all = _read(set_dist_dir / "test_set.txt")
+    validate_all = _read(set_dist_dir / "validate_set.txt")
 
     train_records = [r for r in train_all if r in available_records]
     test_records = [r for r in test_all if r in available_records]
+    validate_records = [r for r in validate_all if r in available_records]
 
     if record_filter is not None:
         filter_set = set(record_filter)
@@ -74,7 +88,12 @@ def load_predefined_split(
     if not test_records:
         raise ValueError("No test records with processed data found in test_set.txt.")
 
-    return train_records, test_records
+    if not validate_records:
+        raise ValueError(
+            "No validation records with processed data found in validate_set.txt."
+        )
+
+    return train_records, test_records, validate_records
 
 
 def build_model_name(args: argparse.Namespace) -> str:
