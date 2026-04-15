@@ -12,7 +12,7 @@
 #SBATCH --job-name=sleepy-forest
 #SBATCH --output=jobs/logs/%A/forest_%A_%a.out
 #SBATCH --error=jobs/logs/%A/forest_%A_%a.err
-#SBATCH --array=0-8          # 9 configurations (indices 0–8)
+#SBATCH --array=0-17          # 18 configurations (indices 0–17)
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
@@ -35,7 +35,7 @@ source .venv/bin/activate
 # Each entry is a space-separated string:
 #   "MODEL [--flag value ...]"
 #
-# Rows 0-8:   RandomForest  n_estimators ∈ {50, 100, 200}  ×  max_depth ∈ {10, 15, 20}
+# Rows 0-17:   RandomForest  n_estimators ∈ {50, 100, 200}  ×  max_depth ∈ {10, 15, 20}  ×  normalized ∈ {True, False}
 # ==============================================================================
 CONFIGS=(
     "RandomForest --n-estimators 50  --max-depth 10"
@@ -47,6 +47,15 @@ CONFIGS=(
     "RandomForest --n-estimators 200 --max-depth 10"
     "RandomForest --n-estimators 200 --max-depth 15"
     "RandomForest --n-estimators 200 --max-depth 20"
+    "RandomForest --n-estimators 50  --max-depth 10 --no-normalized"
+    "RandomForest --n-estimators 50  --max-depth 15 --no-normalized"
+    "RandomForest --n-estimators 50  --max-depth 20 --no-normalized"
+    "RandomForest --n-estimators 100 --max-depth 10 --no-normalized"
+    "RandomForest --n-estimators 100 --max-depth 15 --no-normalized"
+    "RandomForest --n-estimators 100 --max-depth 20 --no-normalized"
+    "RandomForest --n-estimators 200 --max-depth 10 --no-normalized"
+    "RandomForest --n-estimators 200 --max-depth 15 --no-normalized"
+    "RandomForest --n-estimators 200 --max-depth 20 --no-normalized"
 )
 
 # Split the config string for this task into an array of arguments.
@@ -64,7 +73,6 @@ echo "============================================================"
 
 python jobs/train_single_classical.py \
     --model "$MODEL" \
-    "${EXTRA[@]}" \
-    --normalized
+    "${EXTRA[@]}"
 
 echo "Finished : $(date)"

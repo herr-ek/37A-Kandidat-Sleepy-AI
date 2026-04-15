@@ -108,7 +108,9 @@ def build_model_name(args: argparse.Namespace) -> str:
         return f"cnn1d_w{args.window_size}_f{args.num_filters}_h{args.hidden_size}_{timestamp}"
     if args.model == "FullyConnected":
         sizes = args.hidden_sizes.replace(",", "x")
-        return f"fc_w{args.window_size}_{sizes}_{timestamp}"
+        dropout_str = str(args.dropout).replace(".", "p")
+        pos_weight_str = str(int(args.max_pos_weight))
+        return f"fc_w{args.window_size}_{sizes}_d{dropout_str}_pw{pos_weight_str}_{timestamp}"
     if args.model == "RNN":
         return f"rnn_w{args.window_size}_h{args.hidden_size}_l{args.num_layers}_{timestamp}"
     if args.model == "KNN":

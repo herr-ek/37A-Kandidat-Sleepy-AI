@@ -167,7 +167,6 @@ def main() -> int:
         console.print(
             f"[dim]Normalised features: {'yes' if args.normalized else 'no'}[/dim]"
         )
-
         X_train, y_train, feature_names = session.build_dataset(
             train_records, use_normalized=args.normalized
         )
