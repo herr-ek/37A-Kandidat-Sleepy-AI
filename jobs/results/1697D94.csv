@@ -1,0 +1,15 @@
+Model File,Model Type,Hyperparameters,Accuracy,Recall,F1 Macro,Saved At,Num Records
+knn_k11_norm_20260409_121020,KNN,"n_neighbors=11, use_normalized=True",0.916191,0.589747,0.61885,2026-04-09T12:10:26,795
+knn_k15_norm_20260409_121024,KNN,"n_neighbors=15, use_normalized=True",0.91753,0.587061,0.616964,2026-04-09T12:10:28,795
+knn_k3_norm_20260409_121009,KNN,"n_neighbors=3, use_normalized=True",0.899268,0.598295,0.613625,2026-04-09T12:10:19,795
+knn_k5_norm_20260409_121011,KNN,"n_neighbors=5, use_normalized=True",0.906948,0.595462,0.617046,2026-04-09T12:10:34,795
+knn_k7_norm_20260409_121013,KNN,"n_neighbors=7, use_normalized=True",0.912202,0.594011,0.620003,2026-04-09T12:10:35,795
+rf_n100_d10_norm_20260409_121335,RandomForest,"n_estimators=100, max_depth=10, use_normalized=True",0.793367,0.76304,0.622685,2026-04-09T12:13:35,795
+rf_n100_d20_norm_20260409_121502,RandomForest,"n_estimators=100, max_depth=20, use_normalized=True",0.836489,0.747457,0.649953,2026-04-09T12:15:04,795
+rf_n200_d10_norm_20260409_121739,RandomForest,"n_estimators=200, max_depth=10, use_normalized=True",0.793755,0.763032,0.62296,2026-04-09T12:17:39,795
+rf_n200_d20_norm_20260409_122043,RandomForest,"n_estimators=200, max_depth=20, use_normalized=True",0.837132,0.747557,0.650526,2026-04-09T12:20:51,795
+rf_n50_d10_norm_20260409_121128,RandomForest,"n_estimators=50, max_depth=10, use_normalized=True",0.794029,0.763151,0.623197,2026-04-09T12:11:28,795
+rf_n50_d20_norm_20260409_121216,RandomForest,"n_estimators=50, max_depth=20, use_normalized=True",0.835997,0.746237,0.649057,2026-04-09T12:12:18,795
+svm_C0p1_norm_20260409_120924,SVM,"C=0.1, use_normalized=True",0.753007,0.691396,0.571957,2026-04-09T12:09:24,795
+svm_C10p0_norm_20260409_120925,SVM,"C=10.0, use_normalized=True",0.752997,0.691401,0.571954,2026-04-09T12:09:25,795
+svm_C1p0_norm_20260409_120927,SVM,"C=1.0, use_normalized=True",0.753001,0.691423,0.571963,2026-04-09T12:09:27,795

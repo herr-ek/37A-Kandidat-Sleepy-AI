@@ -16,9 +16,9 @@ if __name__ == "__main__":
             "Select a program to run:",
             choices=[
                 questionary.Choice("📊 CLI Interface", value="cli"),
-                questionary.Choice(
-                    "_TRAINING PIPELINE (NOT IMPLEMENTED YET)", value="training"
-                ),
+                # questionary.Choice(
+                #     "_TRAINING PIPELINE (NOT IMPLEMENTED YET)", value="training"
+                # ),
                 questionary.Choice("❌ Exit", value="exit"),
             ],
             style=get_questionary_style(),
@@ -29,12 +29,11 @@ if __name__ == "__main__":
 
             pipeline = SleepDataPipeline(console)
             pipeline.run()
-        elif program_choice == "training":
-            # TODO - implement training pipeline
-            console.print(
-                "Training pipeline is not implemented yet. Please select the CLI interface.",
-                style="yellow",
-            )
+        # elif program_choice == "training":
+        #     console.print(
+        #         "Training pipeline is not implemented yet. Please select the CLI interface.",
+        #         style="yellow",
+        #     )
         elif program_choice == "exit":
             console.print("Goodbye!", style="bold green")
             running = False

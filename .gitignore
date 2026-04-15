@@ -202,6 +202,7 @@ cython_debug/
 # Project-specific
 # Ignore downloaded ZIP archives and cache
 data/
+jobs/logs/
 *.zip
 .cursorignore
 .cursorindexingignore

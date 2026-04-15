@@ -23,7 +23,7 @@ def normalize_feature(feature: np.ndarray) -> np.ndarray:
     return normalized_feature
 
 
-def normalize_with_context(feature: np.ndarray, up: float, down: float) -> np.ndarray:
+def normalize_with_context(feature: np.ndarray, down: float, up: float) -> np.ndarray:
     """Normalize a feature to the range [down, up] using provided upper and lower bounds.
 
     Parameters:
@@ -57,10 +57,10 @@ def normalize_feature_df(df: pd.DataFrame) -> pd.DataFrame:
         if (
             col != "time_s"
         ):  # Assuming 'time_s' is a time feature that should not be normalized
-            if col == "mean_sao2":
-                # Normalize mean_sao2 to [0, 1] based on expected SaO2 range (e.g., 70-100%)
+            if col == "mean_sao2" or col == "min_sao2":
+                # Normalize mean_sao2 and min_sao2 to [0, 1] based on expected SaO2 range (e.g., 70-100%)
                 normalized_df[col] = normalize_with_context(
-                    df[col].to_numpy(), up=100, down=70
+                    df[col].to_numpy(), down=70, up=100
                 )
             else:
                 normalized_df[col] = normalize_feature(df[col].to_numpy())

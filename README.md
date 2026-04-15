@@ -101,3 +101,52 @@ The project includes the following Python libraries (see `requirements.txt`):
 - **Development**: jupyter, ipykernel, tqdm
 
 Additional deep learning frameworks (PyTorch, TensorFlow) can be uncommented in `requirements.txt` if needed.
+
+## GPU Training On Windows
+
+If you want to train the 1-D CNN on an NVIDIA GPU such as an RTX 3070, the default setup is not enough on its own. The current virtual environment may contain a CPU-only PyTorch build.
+
+### 1. Install CUDA-enabled PyTorch in the project venv
+
+From the repository root in PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade --force-reinstall torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+Then verify that PyTorch can see the GPU:
+
+```powershell
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no gpu')"
+```
+
+If this prints `True` and shows your NVIDIA GPU name, training will run on CUDA automatically.
+
+### 2. Run the direct CNN training script
+
+The repository includes a non-interactive training entrypoint for the deep model:
+
+```powershell
+python jobs\train_single.py --epochs 20 --batch-size 1024
+```
+
+Useful options:
+
+- `--records tr03-0005 tr03-0146` to train on specific processed records only
+- `--window-size 60` to control the raw SaO2 window size
+- `--test-size 0.2` to change the evaluation split
+- `--model-name cnn1d_3070` to control the saved checkpoint name
+- `--no-save` to do a quick smoke test without writing model files
+
+Models are saved to `data/models/`.
+
+### 3. Use the interactive CLI instead
+
+If you prefer the menu flow, this also works once CUDA-enabled PyTorch is installed:
+
+```powershell
+python src\Cli\cli.py
+```
+
+Choose `Train a model`, then select `Deep (1D CNN)`. The model code uses CUDA automatically when available.

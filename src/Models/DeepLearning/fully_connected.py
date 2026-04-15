@@ -1,0 +1,231 @@
+import numpy as np
+import torch
+import torch.nn as nn
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    recall_score,
+)
+from sklearn.utils.class_weight import compute_class_weight
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
+
+try:
+    from ..IModel import IModel
+except ImportError:
+    from Models.IModel import IModel
+
+
+class _FCNet(nn.Module):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_sizes: list[int],
+        dropout: float = 0.0,
+    ):
+        super().__init__()
+        layers: list[nn.Module] = []
+        prev = input_size
+        for h in hidden_sizes:
+            layers.append(nn.Linear(prev, h))
+            layers.append(nn.BatchNorm1d(h))
+            layers.append(nn.ReLU())
+            if dropout > 0.0:
+                layers.append(nn.Dropout(dropout))
+            prev = h
+        layers.append(nn.Linear(prev, 1))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x).squeeze(1)  # (B,)
+
+
+class FullyConnected(IModel):
+    """Fully-connected (MLP) network for apnea classification on raw SaO2 windows.
+
+    Each window of length ``window_size`` is fed as a flat feature vector.
+    Window length must match the ``window_size`` used when building the dataset.
+    """
+
+    FILE_EXTENSION = ".pt"
+
+    def __init__(
+        self,
+        window_size: int = 60,
+        hidden_sizes: list[int] = None,
+        dropout: float = 0.3,
+        num_epochs: int = 20,
+        batch_size: int = 1024,
+        lr: float = 1e-3,
+        max_pos_weight: float = 10.0,
+        verbose: bool = True,
+        show_progress: bool = False,
+        device: str | None = None,
+    ):
+        self.window_size = window_size
+        self.hidden_sizes = hidden_sizes if hidden_sizes is not None else [128, 64]
+        self.dropout = dropout
+        self.num_epochs = num_epochs
+        self.batch_size = batch_size
+        self.lr = lr
+        self.max_pos_weight = max_pos_weight
+        self.verbose = verbose
+        self.show_progress = show_progress
+        self.device = (
+            torch.device(device)
+            if device
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
+        self._input_mean: np.ndarray | None = None
+        self._input_std: np.ndarray | None = None
+        self._build_net()
+
+    def _build_net(self):
+        self.net = _FCNet(
+            input_size=self.window_size,
+            hidden_sizes=self.hidden_sizes,
+            dropout=self.dropout,
+        ).to(self.device)
+
+    def train(
+        self,
+        X_tr: np.ndarray,
+        y_tr: np.ndarray,
+        X_val: np.ndarray = None,
+        y_val: np.ndarray = None,
+    ) -> None:
+        if X_val is None or y_val is None:
+            from sklearn.model_selection import train_test_split
+
+            X_tr, X_val, y_tr, y_val = train_test_split(
+                X_tr, y_tr, test_size=0.1, random_state=42, stratify=y_tr
+            )
+        # Fit input normalisation on training split only
+        self._input_mean = X_tr.mean(axis=0)
+        self._input_std = X_tr.std(axis=0) + 1e-8
+        X_tr_n = (X_tr - self._input_mean) / self._input_std
+        X_val_n = (X_val - self._input_mean) / self._input_std
+
+        X_t = torch.tensor(X_tr_n, dtype=torch.float32)
+        y_t = torch.tensor(y_tr, dtype=torch.float32)
+        X_val_t = torch.tensor(X_val_n, dtype=torch.float32)
+        loader = DataLoader(
+            TensorDataset(X_t, y_t),
+            batch_size=self.batch_size,
+            shuffle=True,
+            pin_memory=self.device.type == "cuda",
+        )
+
+        classes = np.unique(y_tr)
+        if len(classes) == 2:
+            weights = compute_class_weight("balanced", classes=classes, y=y_tr)
+            raw_pw = weights[1] / weights[0]
+            capped_pw = min(raw_pw, self.max_pos_weight)
+            if self.verbose and raw_pw != capped_pw:
+                print(f"pos_weight capped: {raw_pw:.1f} -> {capped_pw:.1f}")
+            pos_weight = torch.tensor([capped_pw], dtype=torch.float32).to(self.device)
+        else:
+            pos_weight = torch.ones(1).to(self.device)
+
+        criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        optimizer = torch.optim.Adam(self.net.parameters(), lr=self.lr)
+
+        if self.verbose:
+            print(f"Training FullyConnected on device: {self.device}")
+
+        self.net.train()
+        epoch_bar = tqdm(
+            range(self.num_epochs),
+            desc="Training",
+            unit="epoch",
+            disable=not self.show_progress,
+        )
+        for epoch in epoch_bar:
+            epoch_loss = 0.0
+            batch_bar = tqdm(
+                loader,
+                desc=f"  Epoch {epoch + 1}/{self.num_epochs}",
+                unit="batch",
+                leave=False,
+                disable=not self.show_progress,
+            )
+            for Xb, yb in batch_bar:
+                Xb = Xb.to(self.device, non_blocking=self.device.type == "cuda")
+                yb = yb.to(self.device, non_blocking=self.device.type == "cuda")
+                optimizer.zero_grad()
+                loss = criterion(self.net(Xb), yb)
+                loss.backward()
+                optimizer.step()
+                epoch_loss += float(loss.item()) * len(Xb)
+                if self.show_progress:
+                    batch_bar.set_postfix(loss=f"{loss.item():.4f}")
+
+            avg_loss = epoch_loss / max(len(X_t), 1)
+
+            # Per-epoch evaluation on the held-out validation split (batched)
+            val_pred = self._infer_batched(X_val_t)
+            val_ba = balanced_accuracy_score(y_val, val_pred)
+            val_f1 = f1_score(y_val, val_pred, average="macro", zero_division=0)
+            self.net.train()
+
+            if self.verbose:
+                print(
+                    f"  Epoch {epoch + 1:>{len(str(self.num_epochs))}}/{self.num_epochs}"
+                    f"  loss={avg_loss:.4f}"
+                    f"  bal_acc={val_ba:.3f}"
+                    f"  f1={val_f1:.3f}"
+                )
+
+            if self.show_progress:
+                epoch_bar.set_postfix(
+                    loss=f"{avg_loss:.4f}",
+                    bal_acc=f"{val_ba:.3f}",
+                    f1=f"{val_f1:.3f}",
+                )
+
+    def _normalise(self, X: np.ndarray) -> np.ndarray:
+        if self._input_mean is not None:
+            return (X - self._input_mean) / self._input_std
+        return X
+
+    def _infer_batched(self, X_t: torch.Tensor) -> np.ndarray:
+        """Run inference in batches to avoid GPU OOM on large tensors."""
+        self.net.eval()
+        preds = []
+        with torch.no_grad():
+            for i in range(0, len(X_t), self.batch_size):
+                Xb = X_t[i : i + self.batch_size].to(
+                    self.device, non_blocking=self.device.type == "cuda"
+                )
+                probs = torch.sigmoid(self.net(Xb))
+                preds.append((probs >= 0.5).cpu().numpy().astype(np.int64))
+        return np.concatenate(preds)
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        X_t = torch.tensor(self._normalise(X), dtype=torch.float32)
+        return self._infer_batched(X_t)
+
+    def save(self, file_path: str) -> None:
+        torch.save(
+            {
+                "state_dict": self.net.state_dict(),
+                "window_size": self.window_size,
+                "hidden_sizes": self.hidden_sizes,
+                "dropout": self.dropout,
+                "input_mean": self._input_mean,
+                "input_std": self._input_std,
+            },
+            file_path,
+        )
+
+    def load(self, file_path: str) -> "FullyConnected":
+        ckpt = torch.load(file_path, map_location=self.device)
+        self.window_size = ckpt["window_size"]
+        self.hidden_sizes = ckpt["hidden_sizes"]
+        self.dropout = ckpt["dropout"]
+        self._input_mean = ckpt.get("input_mean")
+        self._input_std = ckpt.get("input_std")
+        self._build_net()
+        self.net.load_state_dict(ckpt["state_dict"])
+        return self

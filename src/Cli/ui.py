@@ -41,6 +41,16 @@ class CLI_UI:
                     "📊 Multiple processed records (batch process)",
                     value="processed_batch",
                 ),
+                questionary.Separator("── Training ───────────────────────────"),
+                questionary.Choice(
+                    "🧠 Train a model",
+                    value="train",
+                ),
+                questionary.Separator("── Other ─────────────────────────────"),
+                questionary.Choice(
+                    "🎲 Generate train/test/validate set distribution",
+                    value="generate_sets",
+                ),
                 questionary.Choice(
                     "⬇️  Download data from PhysioNet (OBS. download speed capped to ~1.5 MB/s)",
                     value="download",
@@ -214,7 +224,6 @@ class CLI_UI:
             questionary.Choice(
                 "🧹 Preprocess signal", value="preprocess", checked=True
             ),
-            questionary.Choice("⌚ Resample signal", value="resample"),
             questionary.Choice("✨ Extract features", value="extract_features"),
             questionary.Choice("🥞 Normalize features", value="normalize_features"),
         ]
