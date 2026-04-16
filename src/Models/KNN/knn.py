@@ -11,7 +11,7 @@ except ImportError:
 
 class KNN(IModel):
     def __init__(self, n_neighbors: int = 5):
-        self.model = KNeighborsClassifier(n_neighbors=n_neighbors)
+        self.model = KNeighborsClassifier(n_neighbors=n_neighbors, weights="balanced")
 
     def train(
         self,
@@ -20,8 +20,7 @@ class KNN(IModel):
         X_val: np.ndarray = None,
         y_val: np.ndarray = None,
     ) -> None:
-        sample_weight = compute_sample_weight("balanced", y_tr)
-        self.model.fit(X_tr, y_tr, sample_weight=sample_weight)
+        self.model.fit(X_tr, y_tr)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self.model.predict(X)

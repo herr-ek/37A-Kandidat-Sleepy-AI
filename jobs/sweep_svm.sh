@@ -1,18 +1,18 @@
 #!/bin/bash
 # ==============================================================================
-# Hyperparameter sweep — classical ML models (KNN, SVM)
+# Hyperparameter sweep — SVM model
 #
 # Submit from the project root:
-#   sbatch jobs/sweep_classical.sh
+#   sbatch jobs/sweep_svm.sh
 #
 # Each array task trains one model configuration and saves the result to
 # data/models/.  Adjust the #SBATCH directives below for your allocation.
 # ==============================================================================
 
 #SBATCH --job-name=sleepy-classical
-#SBATCH --output=jobs/logs/%A/classical_%A_%a.out
-#SBATCH --error=jobs/logs/%A/classical_%A_%a.err
-#SBATCH --array=0-16          # 17 configurations (indices 0–16)
+#SBATCH --output=jobs/logs/%A/svm_%A_%a.out
+#SBATCH --error=jobs/logs/%A/svm_%A_%a.err
+#SBATCH --array=0-7          # 8 configurations (indices 0–7)
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=16G
 #SBATCH --time=00:30:00
@@ -35,19 +35,9 @@ source .venv/bin/activate
 # Each entry is a space-separated string:
 #   "MODEL [--flag value ...]"
 #
-# Rows 0–8:   KNN  k ∈ {3, 5, 7, 11, 15, 21, 51, 101, 201}  ×  normalized ∈ {True, False}
-# Rows 9–16:  SVM  C ∈ {0.01, 0.1, 1.0, 10.0}  ×  normalized ∈ {True, False}
+# Rows 0-7:  SVM  C ∈ {0.01, 0.1, 1.0, 10.0}  ×  normalized ∈ {True, False}
 # ==============================================================================
 CONFIGS=(
-    "KNN --n-neighbors 3"
-    "KNN --n-neighbors 5"
-    "KNN --n-neighbors 7"
-    "KNN --n-neighbors 11"
-    "KNN --n-neighbors 15"
-    "KNN --n-neighbors 21"
-    "KNN --n-neighbors 51"
-    "KNN --n-neighbors 101"
-    "KNN --n-neighbors 201"
     "SVM --C 0.01"
     "SVM --C 0.1"
     "SVM --C 1.0"
