@@ -1,6 +1,7 @@
 import joblib
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.utils import compute_sample_weight
 
 try:
     from ..IModel import IModel
@@ -19,7 +20,8 @@ class KNN(IModel):
         X_val: np.ndarray = None,
         y_val: np.ndarray = None,
     ) -> None:
-        self.model.fit(X_tr, y_tr)
+        sample_weight = compute_sample_weight("balanced", y_tr)
+        self.model.fit(X_tr, y_tr, sample_weight=sample_weight)
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self.model.predict(X)
