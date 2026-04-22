@@ -30,6 +30,8 @@ try:
     from .data_processor import DataProcessor
     from .data_saver import DataSaver
     from .downloader import PhysioNetDownloader
+    from .inference_manager import InferenceManager
+    from .results_browser import ResultsBrowser
     from .training_manager import TrainingManager
     from .ui import CLI_UI
     from .utils import get_questionary_style, set_custom_directory
@@ -42,6 +44,8 @@ except ImportError:
     from data_processor import DataProcessor
     from data_saver import DataSaver
     from downloader import PhysioNetDownloader
+    from inference_manager import InferenceManager
+    from results_browser import ResultsBrowser
     from training_manager import TrainingManager
     from ui import CLI_UI
     from utils import get_questionary_style, set_custom_directory
@@ -77,6 +81,8 @@ class SleepDataPipeline:
         self.downloader = PhysioNetDownloader(self.console)
         self.batch_processor = BatchProcessor(self.console)
         self.training_manager = TrainingManager(self.console, self.style)
+        self.inferene_manager = InferenceManager(self.console, self.style)
+        self.results_browser = ResultsBrowser(self.console, self.style)
 
     def run(self):
         """Main entry point for the CLI."""
@@ -113,7 +119,7 @@ class SleepDataPipeline:
         """Step 1: Choose between raw or processed data."""
         choice = self.ui.show_data_source_menu()
 
-        if choice == "exit":
+        if choice is None or choice == "exit":
             self.console.print("[yellow]Goodbye![/yellow]")
             sys.exit(0)
         elif choice == "train":
@@ -123,6 +129,14 @@ class SleepDataPipeline:
             return
         elif choice == "generate_sets":
             self._handle_generate_sets()
+            self.choose_data_source()
+            return
+        elif choice == "inference":
+            self.inferene_manager.run()
+            self.choose_data_source()
+            return
+        elif choice == "results":
+            self.results_browser.run()
             self.choose_data_source()
             return
         elif choice == "download":

@@ -233,6 +233,9 @@ def main() -> int:
             return 1
         device = "cuda"
 
+    else:
+        device = "cpu"
+
     try:
         set_dist_dir = args.set_dist_dir if args.set_dist_dir else SET_DIST_DIR
         all_records = session.find_records_with_processed_data()

@@ -1,12 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    f1_score,
-    recall_score,
-)
+from sklearn.metrics import balanced_accuracy_score, f1_score
 from sklearn.utils.class_weight import compute_class_weight
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
@@ -38,7 +33,7 @@ class _FCNet(nn.Module):
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x).squeeze(1)  # (B,)
+        return self.net(x).squeeze(1)
 
 
 class FullyConnected(IModel):

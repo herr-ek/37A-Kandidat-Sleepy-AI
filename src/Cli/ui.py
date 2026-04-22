@@ -43,14 +43,22 @@ class CLI_UI:
                 ),
                 questionary.Separator("── Training ───────────────────────────"),
                 questionary.Choice(
-                    "🧠 Train a model",
-                    value="train",
-                ),
-                questionary.Separator("── Other ─────────────────────────────"),
-                questionary.Choice(
                     "🎲 Generate train/test/validate set distribution",
                     value="generate_sets",
                 ),
+                questionary.Choice(
+                    "🧠 Train a model",
+                    value="train",
+                ),
+                questionary.Choice(
+                    "🔍 Run inference on a record",
+                    value="inference",
+                ),
+                questionary.Choice(
+                    "📊 Browse batch job results",
+                    value="results",
+                ),
+                questionary.Separator("── Other ─────────────────────────────"),
                 questionary.Choice(
                     "⬇️  Download data from PhysioNet (OBS. download speed capped to ~1.5 MB/s)",
                     value="download",
