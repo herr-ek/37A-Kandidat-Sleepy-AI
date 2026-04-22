@@ -6,6 +6,7 @@ from sklearn.metrics import (
     balanced_accuracy_score,
     confusion_matrix,
     f1_score,
+    precision_score,
     recall_score,
 )
 
@@ -55,6 +56,7 @@ class IModel(ABC):
                 - "balanced_accuracy": Balanced accuracy score.
                 - "accuracy": Accuracy score.
                 - "recall": Macro-averaged recall score.
+                - "precision": Macro-averaged precision score.
                 - "f1_macro": Macro-averaged F1 score.
         """
         y_pred = self.predict(X)
@@ -63,6 +65,7 @@ class IModel(ABC):
             "accuracy": accuracy_score(y, y_pred),
             "recall": recall_score(y, y_pred, average="macro"),
             "f1_macro": f1_score(y, y_pred, average="macro"),
+            "precision": precision_score(y, y_pred, average="macro", zero_division=0),
             "confusion_matrix": confusion_matrix(
                 y, y_pred, normalize="true"
             ),  # Placeholder for confusion matrix (can be added if needed)

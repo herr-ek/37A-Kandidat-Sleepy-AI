@@ -8,10 +8,12 @@ confusion matrix visualisation.
 
 from pathlib import Path
 
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import questionary
+from matplotlib import legend
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -24,7 +26,7 @@ except ImportError:
 
 RESULTS_DIR = DATA_DIR.parent / "jobs" / "results"
 
-METRIC_COLUMNS = ["Balanced Accuracy", "Accuracy", "Recall", "F1 Macro"]
+METRIC_COLUMNS = ["Recall", "Balanced Accuracy", "Accuracy", "F1 Macro"]
 CM_COLUMNS = ["TN", "FP", "FN", "TP"]
 
 
@@ -74,19 +76,35 @@ class ResultsBrowser:
 
         # Outer loop: re-enter when user presses ESC in model picker (= change sort)
         sort_by = METRIC_COLUMNS[0]
+        choices = [
+            questionary.Choice("Exit results browser", value="exit"),
+            questionary.Choice("Display scatter plot", value="scatter"),
+            questionary.Choice("Show summary table", value="summary"),
+        ]
         while True:
-            sort_by = self._pick_sort(df, sort_by)
-            if sort_by is None:
-                return
-            # Inner loop: pick model → detail view → back to picker
-            while True:
-                self._render_summary_table(df, sort_by)
-                chosen_row = self._pick_model(df, sort_by)
-                if chosen_row is None:  # ESC pressed → go back to sort
-                    break
-                if isinstance(chosen_row, str) and chosen_row == "exit":
+            choice = questionary.select(
+                "Choose an action:",
+                choices=choices,
+                style=self.style,
+            ).ask()
+
+            if choice == "summary":
+                sort_by = self._pick_sort(df, sort_by)
+                if sort_by is None:
                     return
-                self._show_detail(chosen_row)
+                # Inner loop: pick model → detail view → back to picker
+                while True:
+                    self._render_summary_table(df, sort_by)
+                    chosen_row = self._pick_model(df, sort_by)
+                    if chosen_row is None:  # ESC pressed → go back to sort
+                        break
+                    if isinstance(chosen_row, str) and chosen_row == "exit":
+                        return
+                    self._show_detail(chosen_row)
+            elif choice == "scatter":
+                self._render_scatter_plot(df)
+            else:
+                return
 
     # ------------------------------------------------------------------
     # CSV loading
@@ -148,6 +166,34 @@ class ResultsBrowser:
             f"[green]✓[/green] Loaded [bold]{len(df)}[/bold] model results."
         )
         return df
+
+    def _render_scatter_plot(self, df: pd.DataFrame):
+        if "F1 Macro" not in df.columns or "Recall" not in df.columns:
+            self.console.print(
+                "[yellow]⚠ Cannot display scatter plot: required columns missing.[/yellow]"
+            )
+            return
+
+        plt.figure(figsize=(8, 6))
+        model_types = (
+            df["Model Type"].unique() if "Model Type" in df.columns else ["Unknown"]
+        )
+        colors = plt.cm.tab10.colors
+        for i, mtype in enumerate(model_types):
+            subset = df[df["Model Type"] == mtype]
+            plt.scatter(
+                subset["Recall"],
+                subset["F1 Macro"],
+                alpha=0.7,
+                color=colors[i % len(colors)],
+                label=mtype,
+            )
+        plt.legend(title="Model Type", loc="best")
+        plt.ylabel("F1 Macro")
+        plt.xlabel("Recall")
+        plt.title("Model Performance Scatter Plot")
+        plt.grid(True)
+        plt.show()
 
     # ------------------------------------------------------------------
     # Summary table
@@ -320,45 +366,45 @@ class ResultsBrowser:
                 cm_array = np.array([[tp, fn], [fp, tn]])
 
                 # Per-cell colour: diagonal = green (good), off-diagonal = red (bad)
-                import matplotlib.colors as mcolors
-
-                good = np.array(mcolors.to_rgba("#40eb87"))  # emerald green
-                bad = np.array(mcolors.to_rgba("#dd5c4e"))  # alizarin red
-                white = np.array([1.0, 1.0, 1.0, 1.0])
-                rgba = np.zeros((2, 2, 4))
-                for i in range(2):
-                    for j in range(2):
-                        base = good if i == j else bad
-                        rgba[i, j] = white + cm_array[i, j] * (base - white)
-
-                fig, ax = plt.subplots(figsize=(5, 4))
-                ax.imshow(rgba, aspect="equal")
-                for (i, j), val in np.ndenumerate(cm_array):
-                    brightness = (
-                        0.299 * rgba[i, j, 0]
-                        + 0.587 * rgba[i, j, 1]
-                        + 0.114 * rgba[i, j, 2]
-                    )
-                    text_color = "black" if brightness > 0.55 else "white"
-                    ax.text(
-                        j,
-                        i,
-                        f"{val:.4f}",
-                        ha="center",
-                        va="center",
-                        color=text_color,
-                        fontsize=13,
-                        fontweight="bold",
-                    )
-                ax.set_xticks([0, 1])
-                ax.set_yticks([0, 1])
-                ax.set_xticklabels(["Predicted 1", "Predicted 0"])
-                ax.set_yticklabels(["Actual 1", "Actual 0"])
-                plt.title(f"Confusion Matrix — {model_name}", pad=12)
-                plt.tight_layout()
-                plt.show()
+                model_name = row.get("Model Type", "Unknown")
+                self.display_confusion_matrix(model_name, cm_array)
             else:
                 break
+
+    def display_confusion_matrix(self, model_name, cm_array):
+        good = np.array(mcolors.to_rgba("#40eb87"))  # emerald green
+        bad = np.array(mcolors.to_rgba("#dd5c4e"))  # alizarin red
+        white = np.array([1.0, 1.0, 1.0, 1.0])
+        rgba = np.zeros((2, 2, 4))
+        for i in range(2):
+            for j in range(2):
+                base = good if i == j else bad
+                rgba[i, j] = white + cm_array[i, j] * (base - white)
+
+        _, ax = plt.subplots(figsize=(5, 4))
+        ax.imshow(rgba, aspect="equal")
+        for (i, j), val in np.ndenumerate(cm_array):
+            brightness = (
+                0.299 * rgba[i, j, 0] + 0.587 * rgba[i, j, 1] + 0.114 * rgba[i, j, 2]
+            )
+            text_color = "black" if brightness > 0.55 else "white"
+            ax.text(
+                j,
+                i,
+                f"{val:.4f}",
+                ha="center",
+                va="center",
+                color=text_color,
+                fontsize=13,
+                fontweight="bold",
+            )
+        ax.set_xticks([0, 1])
+        ax.set_yticks([0, 1])
+        ax.set_xticklabels(["Predicted 1", "Predicted 0"])
+        ax.set_yticklabels(["Actual 1", "Actual 0"])
+        plt.title(f"Confusion Matrix — {model_name}", pad=12)
+        plt.tight_layout()
+        plt.show()
         # questionary.press_any_key_to_continue("Press any key to go back…").ask()
 
     @staticmethod
