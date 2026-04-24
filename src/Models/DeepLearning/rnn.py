@@ -228,7 +228,7 @@ class RNN(IModel):
         )
 
     def load(self, file_path: str) -> "RNN":
-        ckpt = torch.load(file_path, map_location=self.device)
+        ckpt = torch.load(file_path, map_location=self.device, weights_only=False)
         self.window_size = ckpt["window_size"]
         self.hidden_size = ckpt["hidden_size"]
         self.num_layers = ckpt["num_layers"]

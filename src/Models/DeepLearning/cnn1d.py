@@ -209,7 +209,7 @@ class CNN1D(IModel):
         )
 
     def load(self, file_path: str) -> "CNN1D":
-        ckpt = torch.load(file_path, map_location=self.device)
+        ckpt = torch.load(file_path, map_location=self.device, weights_only=False)
         self.window_size = ckpt["window_size"]
         self.num_filters = ckpt["num_filters"]
         self.hidden_size = ckpt["hidden_size"]

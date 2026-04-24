@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 
 def _find_event_intervals(series: pd.Series) -> list[tuple[float, float]]:
@@ -34,9 +34,9 @@ def _find_event_intervals(series: pd.Series) -> list[tuple[float, float]]:
     return intervals
 
 
-def plot_with_annotations(df: pd.DataFrame, title: str = "SaO2 with Annotations"):
+def plot_with_annotations(df: pd.DataFrame, title: str = "SpO2 with Annotations"):
     """
-    Plots the SaO2 signal with apnea and hypopnea annotations as vertical bars.
+    Plots the SpO2 signal with apnea and hypopnea annotations as vertical bars.
 
     Args:
         df: DataFrame containing 'time_s', 'sao2_percent', 'is_apnea', and 'is_hypopnea' columns.
@@ -46,7 +46,7 @@ def plot_with_annotations(df: pd.DataFrame, title: str = "SaO2 with Annotations"
     plt.plot(
         df["time_s"],
         df["sao2_percent"],
-        label="SaO2 (%)",
+        label="SpO2 (%)",
         color="green",
         zorder=3,
         linewidth=1,
@@ -79,7 +79,7 @@ def plot_with_annotations(df: pd.DataFrame, title: str = "SaO2 with Annotations"
 
     plt.title(title)
     plt.xlabel("Time (s)")
-    plt.ylabel("SaO2 (%)")
+    plt.ylabel("SpO2 (%)")
     plt.legend()
     plt.grid()
     plt.show()

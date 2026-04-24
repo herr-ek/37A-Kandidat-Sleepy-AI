@@ -26,7 +26,7 @@ except ImportError:
 
 RESULTS_DIR = DATA_DIR.parent / "jobs" / "results"
 
-METRIC_COLUMNS = ["Recall", "Balanced Accuracy", "Accuracy", "F1 Macro"]
+METRIC_COLUMNS = ["Recall", "Precision", "Accuracy", "F1 Macro"]
 CM_COLUMNS = ["TN", "FP", "FN", "TP"]
 
 
@@ -168,7 +168,7 @@ class ResultsBrowser:
         return df
 
     def _render_scatter_plot(self, df: pd.DataFrame):
-        if "F1 Macro" not in df.columns or "Recall" not in df.columns:
+        if "Precision" not in df.columns or "Recall" not in df.columns:
             self.console.print(
                 "[yellow]⚠ Cannot display scatter plot: required columns missing.[/yellow]"
             )
@@ -183,14 +183,14 @@ class ResultsBrowser:
             subset = df[df["Model Type"] == mtype]
             plt.scatter(
                 subset["Recall"],
-                subset["F1 Macro"],
+                subset["Precision"],
                 alpha=0.7,
                 color=colors[i % len(colors)],
                 label=mtype,
             )
         plt.legend(title="Model Type", loc="best")
-        plt.ylabel("F1 Macro")
         plt.xlabel("Recall")
+        plt.ylabel("Precision")
         plt.title("Model Performance Scatter Plot")
         plt.grid(True)
         plt.show()
