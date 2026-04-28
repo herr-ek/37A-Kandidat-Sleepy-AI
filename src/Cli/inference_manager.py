@@ -7,6 +7,7 @@ then runs predictions on a single selected record.
 
 import inspect
 import json
+import math
 
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
@@ -44,41 +45,40 @@ class InferenceManager:
         self.console.print(
             "\n[bold cyan]─── Model Inference ──────────────────────────────[/bold cyan]"
         )
-
         # 1. Select and load model
         result = self._select_and_load_model()
         if result is None:
             return
         model, meta = result
         is_deep = meta.get("model") in {"CNN1D", "FullyConnected", "RNN"}
+        while True:
+            # 2. Select a single record and build its dataset
+            try:
+                X, y, record_ctx = self._select_and_build_record(is_deep, meta)
+            except (ValueError, RuntimeError) as exc:
+                self.console.print(f"[red]✗ {exc}[/red]")
+                return
 
-        # 2. Select a single record and build its dataset
-        try:
-            X, y, record_ctx = self._select_and_build_record(is_deep, meta)
-        except (ValueError, RuntimeError) as exc:
-            self.console.print(f"[red]✗ {exc}[/red]")
-            return
+            # 3. Predict and display summary
+            self.console.print("\n[bold cyan]Running predictions...[/bold cyan]")
+            y_pred = model.predict(X)
+            self._display_prediction_summary(y_pred)
 
-        # 3. Predict and display summary
-        self.console.print("\n[bold cyan]Running predictions...[/bold cyan]")
-        y_pred = model.predict(X)
-        self._display_prediction_summary(y_pred)
+            # 4. Reconstruct time series, compute AHI, offer plot
+            try:
+                ts_df = self._reconstruct_timeseries(y_pred, record_ctx)
+                pred_stats, gt_stats = self._display_ahi(ts_df)
+                plot = questionary.confirm(
+                    "Plot SaO2 signal with apnea annotations?", default=False
+                ).ask()
+                if plot:
+                    self._plot_signal(ts_df, record_ctx["name"], pred_stats, gt_stats)
+            except Exception as exc:
+                self.console.print(f"[yellow]⚠ Could not compute AHI: {exc}[/yellow]")
 
-        # 4. Reconstruct time series, compute AHI, offer plot
-        try:
-            ts_df = self._reconstruct_timeseries(y_pred, record_ctx)
-            self._display_ahi(ts_df)
-            plot = questionary.confirm(
-                "Plot SaO2 signal with apnea annotations?", default=False
-            ).ask()
-            if plot:
-                self._plot_signal(ts_df, record_ctx["name"])
-        except Exception as exc:
-            self.console.print(f"[yellow]⚠ Could not compute AHI: {exc}[/yellow]")
-
-        # 5. Evaluate against ground truth if labels are available
-        if y is not None:
-            self.session.evaluate(model, X, y)
+            # 5. Evaluate against ground truth if labels are available
+            if y is not None:
+                self.session.evaluate(model, X, y)
 
     # ------------------------------------------------------------------
     # Model selection and loading
@@ -318,31 +318,64 @@ class InferenceManager:
         return df
 
     @staticmethod
-    def _compute_ahi_stats(binary: np.ndarray, total_hours: float) -> dict:
-        """Count contiguous apnea events and derive AHI statistics from a binary array."""
-        n_events = 0
-        in_event = False
-        event_lengths: list[int] = []
-        current_len = 0
-        for v in binary:
-            if v and current_len <= 40:
-                current_len += 1
-                if not in_event:
-                    n_events += 1
-                    in_event = True
-            else:
-                if in_event:
-                    event_lengths.append(current_len)
-                    current_len = 0
-                in_event = False
-        if in_event:
-            event_lengths.append(current_len)
+    def _compute_ahi_stats(
+        binary: np.ndarray,
+        time_s: np.ndarray,
+        total_hours: float,
+        max_duration: int = 30,
+        min_gap: int = 10,
+    ) -> dict:
+        """Count apnea events using merge-then-split logic.
 
+        1. Find contiguous apnea runs.
+        2. Merge runs separated by fewer than *min_gap* non-apnea seconds.
+        3. Walk each merged run: take up to *max_duration* seconds as one event,
+           then skip *min_gap* seconds (mandatory gap), then start the next event —
+           even if still inside a predicted apnea run.
+
+        Returns a dict with n_events, ahi, avg_duration, apnea_minutes, and
+        ``events`` — a list of (start_s, end_s) float tuples for plotting.
+        """
+        # Step 1: find contiguous 1-runs as index ranges
+        runs: list[tuple[int, int]] = []
+        in_run = False
+        run_start = 0
+        for i, v in enumerate(binary):
+            if v and not in_run:
+                run_start = i
+                in_run = True
+            elif not v and in_run:
+                runs.append((run_start, i - 1))
+                in_run = False
+        if in_run:
+            runs.append((run_start, len(binary) - 1))
+
+        # Step 2: merge runs where the gap is shorter than min_gap
+        merged: list[tuple[int, int]] = []
+        for run in runs:
+            if merged and (run[0] - merged[-1][1] - 1) < min_gap:
+                merged[-1] = (merged[-1][0], run[1])
+            else:
+                merged.append(run)
+
+        # Step 3: split runs longer than max_duration.
+        # Each event lasts at most max_duration seconds; after it ends we wait
+        # min_gap seconds (still inside the run) before the next event starts.
+        events: list[tuple[float, float]] = []
+        for start, end in merged:
+            cursor = start
+            while cursor <= end:
+                event_end = min(cursor + max_duration - 1, end)
+                events.append((float(time_s[cursor]), float(time_s[event_end])))
+                cursor = event_end + 1 + min_gap  # mandatory gap before next event
+
+        durations = [e - s + 1.0 for s, e in events]
         return {
-            "n_events": n_events,
-            "ahi": n_events / total_hours if total_hours > 0 else 0.0,
-            "avg_duration": float(np.mean(event_lengths)) if event_lengths else 0.0,
-            "apnea_minutes": binary.sum() / 60.0,
+            "n_events": len(events),
+            "ahi": len(events) / total_hours if total_hours > 0 else 0.0,
+            "avg_duration": float(np.mean(durations)) if durations else 0.0,
+            "apnea_minutes": float(binary.sum()) / 60.0,
+            "events": events,
         }
 
     @staticmethod
@@ -355,12 +388,15 @@ class InferenceManager:
             return "Moderate", "orange3"
         return "Severe", "red"
 
-    def _display_ahi(self, df: pd.DataFrame) -> None:
+    def _display_ahi(self, df: pd.DataFrame) -> tuple[dict, dict | None]:
         """Compute and display AHI statistics, with ground-truth comparison if available."""
         total_seconds = float(df["time_s"].iloc[-1] - df["time_s"].iloc[0]) + 1.0
         total_hours = total_seconds / 3600.0
+        time_s = df["time_s"].values
 
-        pred_stats = self._compute_ahi_stats(df["predicted_apnea"].values, total_hours)
+        pred_stats = self._compute_ahi_stats(
+            df["predicted_apnea"].values, time_s, total_hours
+        )
 
         has_gt = "is_apnea" in df.columns and "is_hypopnea" in df.columns
         gt_stats: dict | None = None
@@ -368,7 +404,7 @@ class InferenceManager:
             gt_binary = ((df["is_apnea"].values + df["is_hypopnea"].values) > 0).astype(
                 np.int32
             )
-            gt_stats = self._compute_ahi_stats(gt_binary, total_hours)
+            gt_stats = self._compute_ahi_stats(gt_binary, time_s, total_hours)
 
         table = Table(title="Sleep Statistics", box=box.ROUNDED)
         table.add_column("Metric", style="cyan")
@@ -417,12 +453,18 @@ class InferenceManager:
                 f"(AHI = {gt_stats['ahi']:.1f} events/h)"
             )
 
-    def _plot_signal(self, df: pd.DataFrame, record_name: str) -> None:
-        """Plot SaO2 over time with shaded predicted (and ground-truth) apnea regions."""
+        return pred_stats, gt_stats
+
+    def _plot_signal(
+        self,
+        df: pd.DataFrame,
+        record_name: str,
+        pred_stats: dict,
+        gt_stats: dict | None,
+    ) -> None:
+        """Plot SaO2 with split predicted events and (optionally) split ground-truth events."""
         time_h = df["time_s"].values / 3600.0
         sao2 = df["sao2_percent"].values
-        predicted = df["predicted_apnea"].values
-        has_gt = "is_apnea" in df.columns
 
         fig, ax = plt.subplots(figsize=(14, 4))
         ax.plot(
@@ -431,19 +473,23 @@ class InferenceManager:
 
         legend_patches = [mpatches.Patch(color="#4a9eda", label="SaO₂ (%)")]
 
-        if has_gt:
-            gt = (
-                df["is_apnea"].values
-                + df.get("is_hypopnea", pd.Series(np.zeros(len(df)))).values
-            ) > 0
-            self._shade_regions(ax, time_h, gt.astype(int), color="#5cb85c", alpha=0.30)
+        if gt_stats is not None:
+            self._shade_event_list(ax, gt_stats["events"], color="#5cb85c", alpha=0.35)
             legend_patches.append(
-                mpatches.Patch(color="#5cb85c", alpha=0.6, label="Ground truth")
+                mpatches.Patch(
+                    color="#5cb85c",
+                    alpha=0.6,
+                    label=f"Ground truth ({gt_stats['n_events']} events, AHI {gt_stats['ahi']:.1f})",
+                )
             )
 
-        self._shade_regions(ax, time_h, predicted, color="#d9534f", alpha=0.40)
+        self._shade_event_list(ax, pred_stats["events"], color="#d9534f", alpha=0.45)
         legend_patches.append(
-            mpatches.Patch(color="#d9534f", alpha=0.7, label="Predicted apnea")
+            mpatches.Patch(
+                color="#d9534f",
+                alpha=0.7,
+                label=f"Predicted ({pred_stats['n_events']} events, AHI {pred_stats['ahi']:.1f})",
+            )
         )
 
         ax.set_xlabel("Time (hours)")
@@ -455,22 +501,14 @@ class InferenceManager:
         plt.show()
 
     @staticmethod
-    def _shade_regions(
+    def _shade_event_list(
         ax: plt.Axes,
-        time_h: np.ndarray,
-        binary: np.ndarray,
+        events: list[tuple[float, float]],
         color: str,
         alpha: float,
     ) -> None:
-        """Shade contiguous runs of 1s in *binary* on *ax*."""
-        in_region = False
-        start = 0.0
-        for i, v in enumerate(binary):
-            if v and not in_region:
-                start = time_h[i]
-                in_region = True
-            elif not v and in_region:
-                ax.axvspan(start, time_h[i - 1], color=color, alpha=alpha, linewidth=0)
-                in_region = False
-        if in_region:
-            ax.axvspan(start, time_h[-1], color=color, alpha=alpha, linewidth=0)
+        """Shade a list of (start_s, end_s) event intervals on *ax* (x-axis in hours)."""
+        for start_s, end_s in events:
+            ax.axvspan(
+                start_s / 3600.0, end_s / 3600.0, color=color, alpha=alpha, linewidth=0
+            )

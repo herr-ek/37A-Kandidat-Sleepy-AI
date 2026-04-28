@@ -120,7 +120,7 @@ class DataSaver:
 
     def export_to_parquet(self, selected_records: list, data_source: str) -> bool:
         """Export raw data to parquet format."""
-        if data_source != "raw":
+        if not (data_source == "raw" or data_source == "csv"):
             self.console.print(
                 "[yellow]⚠ This action only works with raw data[/yellow]"
             )

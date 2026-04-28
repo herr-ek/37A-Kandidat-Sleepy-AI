@@ -28,12 +28,14 @@ class CLI_UI:
         choice = questionary.select(
             "What type of data do you want to work with?",
             choices=[
+                questionary.Separator("── Data ───────────────────────────────"),
                 questionary.Choice(
                     "📁 Raw data (load from .mat + .arousal files)", value="raw"
                 ),
                 questionary.Choice(
                     "📂 Multiple raw records (batch process)", value="raw_batch"
                 ),
+                questionary.Choice("📄 Load from CSV file", value="csv"),
                 questionary.Choice(
                     "📊 Processed data (load from .parquet files)", value="processed"
                 ),
@@ -58,7 +60,11 @@ class CLI_UI:
                     "📊 Browse batch job results",
                     value="results",
                 ),
-                questionary.Separator("── Other ─────────────────────────────"),
+                questionary.Choice(
+                    "🔄 Resample processed records",
+                    value="resample",
+                ),
+                questionary.Separator("── Other ──────────────────────────────"),
                 questionary.Choice(
                     "⬇️  Download data from PhysioNet (OBS. download speed capped to ~1.5 MB/s)",
                     value="download",
@@ -178,9 +184,19 @@ class CLI_UI:
                 value="resample_signal",
                 disabled=_disabled(df_loaded, "Load data first"),
             ),
+            questionary.Choice(
+                "✂️  Trim signal",
+                value="trim_signal",
+                disabled=_disabled(df_loaded, "Load data first"),
+            ),
             questionary.Separator("── File ──────────────────────────────"),
             questionary.Choice(
-                "📤 Export to parquet (raw data only)", value="export_parquet"
+                "� Save current data as parquet",
+                value="save_dataframe",
+                disabled=_disabled(df_loaded, "Load data first"),
+            ),
+            questionary.Choice(
+                "�📤 Export to parquet (raw data only)", value="export_parquet"
             ),
             questionary.Separator("── Navigation ────────────────────────"),
             questionary.Choice("🔄 Select different record", value="change_record"),

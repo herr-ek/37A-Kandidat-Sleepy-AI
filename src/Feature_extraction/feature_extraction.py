@@ -54,7 +54,7 @@ def extract_features(
     # Extract numpy arrays once — avoids repeated DataFrame slicing in the loop
     sao2 = data["sao2_percent"].values
     time = data["time_s"].values
-    if training:
+    if training and "is_apnea" in data.columns and "is_hypopnea" in data.columns:
         is_apnea = data["is_apnea"].values
         is_hypopnea = data["is_hypopnea"].values
 
@@ -76,7 +76,7 @@ def extract_features(
             "o2_sat_80_90": ((w_ext < 90) & (w_ext >= 80)).sum() / extended_window_size,
             "o2_sat_<80": (w_ext < 80).sum() / extended_window_size,
         }
-        if training:
+        if training and "is_apnea" in data.columns and "is_hypopnea" in data.columns:
             a = is_apnea[i : i + windowSize]
             h = is_hypopnea[i : i + windowSize]
             row["apnea_event"] = (

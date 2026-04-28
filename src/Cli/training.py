@@ -196,7 +196,7 @@ class TrainingSession:
         selected_records: list[str],
         window_size: int = 60,
         step_size: int | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray | None]:
         """Build a dataset of raw SaO2 windows from processed parquet files.
 
         Args:
@@ -206,13 +206,14 @@ class TrainingSession:
 
         Returns:
             X: (n_windows, window_size) float64
-            y: (n_windows,) int64
+            y: (n_windows,) int64, or None if no annotation columns are present
         """
         if step_size is None:
             step_size = window_size // 2
 
         all_X: list[np.ndarray] = []
         all_y: list[int] = []
+        has_labels = False
 
         for record_name in selected_records:
             processed_file = self._get_processed_file(record_name)
@@ -222,39 +223,49 @@ class TrainingSession:
                 )
                 continue
             df = pd.read_parquet(processed_file).dropna()
-            if "sao2_percent" not in df.columns or "is_apnea" not in df.columns:
+            if "sao2_percent" not in df.columns:
                 self.console.print(
-                    f"[yellow]⚠ Skipping {record_name}: missing required columns[/yellow]"
+                    f"[yellow]⚠ Skipping {record_name}: missing 'sao2_percent' column[/yellow]"
                 )
                 continue
 
+            record_has_labels = "is_apnea" in df.columns and "is_hypopnea" in df.columns
+            if record_has_labels:
+                has_labels = True
+
             sao2 = df["sao2_percent"].values
-            is_apnea = df["is_apnea"].values
-            is_hypopnea = df["is_hypopnea"].values
+            is_apnea = df["is_apnea"].values if record_has_labels else None
+            is_hypopnea = df["is_hypopnea"].values if record_has_labels else None
             n = len(sao2)
 
             for i in range(0, n - window_size + 1, step_size):
-                w = sao2[i : i + window_size]
-                a = is_apnea[i : i + window_size]
-                h = is_hypopnea[i : i + window_size]
-                label = (
-                    1
-                    if (a.sum() >= window_size / 2 or h.sum() >= window_size / 2)
-                    else 0
-                )
-                all_X.append(w)
-                all_y.append(label)
+                all_X.append(sao2[i : i + window_size])
+                if record_has_labels:
+                    a = is_apnea[i : i + window_size]
+                    h = is_hypopnea[i : i + window_size]
+                    all_y.append(
+                        1
+                        if (a.sum() >= window_size / 2 or h.sum() >= window_size / 2)
+                        else 0
+                    )
 
         if not all_X:
             raise ValueError("No valid processed files found for the selected records.")
 
         X = np.array(all_X, dtype=np.float64)
-        y = np.array(all_y, dtype=np.int64)
-        self.console.print(
-            f"[green]OK[/green] Raw dataset assembled: "
-            f"{X.shape[0]} windows x {window_size}s, "
-            f"{int(y.sum())} apnea / {int((y == 0).sum())} non-apnea"
-        )
+        if has_labels:
+            y: np.ndarray | None = np.array(all_y, dtype=np.int64)
+            self.console.print(
+                f"[green]OK[/green] Raw dataset assembled: "
+                f"{X.shape[0]} windows x {window_size}s, "
+                f"{int(y.sum())} apnea / {int((y == 0).sum())} non-apnea"
+            )
+        else:
+            y = None
+            self.console.print(
+                f"[green]OK[/green] Raw dataset assembled: "
+                f"{X.shape[0]} windows x {window_size}s  [dim](no annotations)[/dim]"
+            )
         return X, y
 
     def split_dataset(
