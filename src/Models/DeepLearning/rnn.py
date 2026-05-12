@@ -41,7 +41,7 @@ class _RNNNet(nn.Module):
 
 
 class RNN(IModel):
-    """Vanilla RNN for apnea classification on raw SaO2 windows.
+    """Vanilla RNN for apnea classification on raw SpO2 windows.
 
     Each window of length ``window_size`` is treated as a sequence of
     scalar observations fed to the RNN one time-step at a time.

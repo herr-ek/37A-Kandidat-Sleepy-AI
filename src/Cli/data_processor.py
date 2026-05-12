@@ -31,7 +31,7 @@ class DataProcessor:
         self.console.print("\n[bold cyan]Preprocessing signal...[/bold cyan]")
 
         if "sao2_percent" not in df.columns:
-            self.console.print("[red]✗ No SaO2 signal found in data[/red]")
+            self.console.print("[red]✗ No SpO2 signal found in data[/red]")
             return df, False
 
         original_signal = df["sao2_percent"].to_numpy()
@@ -92,7 +92,7 @@ class DataProcessor:
         )
 
         if "sao2_percent" not in df.columns:
-            self.console.print("[red]✗ No SaO2 signal found in data[/red]")
+            self.console.print("[red]✗ No SpO2 signal found in data[/red]")
             return
 
         res_s, freq_hz = self._detect_source_resolution(df)

@@ -98,7 +98,7 @@ def print_analysis_results(record, result):
     if "error" in result:
         print(f"Error: {result['error']}")
     else:
-        print(f"Analysis Results for {record}, Channel 11 (SaO2):")
+        print(f"Analysis Results for {record}, Channel 11 (SpO2):")
         print(f"  Signal duration: {result['signal_duration_seconds']:.1f} seconds")
         print(f"  Total runs detected: {result['total_runs']}")
         print(f"  Smallest run length: {result['smallest_run_length']} samples")

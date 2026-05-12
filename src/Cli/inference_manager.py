@@ -18,6 +18,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from pathlib import Path
+
 try:
     from .config import MODELS_DIR, PROCESSED_DIR
     from .training import LABEL_COLUMN, NON_FEATURE_COLUMNS, TrainingSession
@@ -26,6 +28,8 @@ except ImportError:
     from config import MODELS_DIR, PROCESSED_DIR
     from training import LABEL_COLUMN, NON_FEATURE_COLUMNS, TrainingSession
     from training_manager import _build_model_registry
+
+SET_DIST_DIR = Path(__file__).resolve().parents[2] / "set_distribution"
 
 
 class InferenceManager:
@@ -69,7 +73,7 @@ class InferenceManager:
                 ts_df = self._reconstruct_timeseries(y_pred, record_ctx)
                 pred_stats, gt_stats = self._display_ahi(ts_df)
                 plot = questionary.confirm(
-                    "Plot SaO2 signal with apnea annotations?", default=False
+                    "Plot SpO2 signal with apnea annotations?", default=False
                 ).ask()
                 if plot:
                     self._plot_signal(ts_df, record_ctx["name"], pred_stats, gt_stats)
@@ -80,13 +84,120 @@ class InferenceManager:
             if y is not None:
                 self.session.evaluate(model, X, y)
 
+            # 6. Optional overfitting / underfitting check
+            run_fit = questionary.confirm(
+                "Run overfitting/underfitting check across train/val/test splits?",
+                default=False,
+            ).ask()
+            if run_fit:
+                self._run_fit_check(model, is_deep, meta)
+
+    # ------------------------------------------------------------------
+    # Overfitting / underfitting check
+    # ------------------------------------------------------------------
+
+    def _run_fit_check(self, model, is_deep: bool, meta: dict) -> None:
+        """Evaluate the model on train, validation, and test splits and report fit."""
+        self.console.print("\n[bold cyan]Building train/val/test splits...[/bold cyan]")
+        try:
+            all_records = self.session.find_records_with_processed_data()
+            available = {r["name"] for r in all_records if r["has_labels"]}
+
+            def _read(fname: str) -> list[str]:
+                path = SET_DIST_DIR / fname
+                if not path.exists():
+                    return []
+                return [
+                    ln.strip()
+                    for ln in path.read_text().splitlines()
+                    if ln.strip() and ln.strip() in available
+                ]
+
+            train_records = _read("training_set.txt")
+            val_records = _read("validate_set.txt")
+            test_records = _read("test_set.txt")
+
+            if not (train_records and val_records and test_records):
+                self.console.print(
+                    "[yellow]⚠ Could not find all three splits — skipping fit check.[/yellow]"
+                )
+                return
+
+            hyperparams = meta.get("hyperparameters", {})
+            window_size = hyperparams.get("window_size", 60)
+
+            if is_deep:
+                X_train, y_train = self.session.build_raw_dataset(
+                    train_records, window_size=window_size
+                )
+                X_val, y_val = self.session.build_raw_dataset(
+                    val_records, window_size=window_size
+                )
+                X_test, y_test = self.session.build_raw_dataset(
+                    test_records, window_size=window_size
+                )
+            else:
+                use_normalized = hyperparams.get("use_normalized", True)
+                X_train, y_train, _ = self.session.build_dataset(
+                    train_records, use_normalized=use_normalized
+                )
+                X_val, y_val, _ = self.session.build_dataset(
+                    val_records, use_normalized=use_normalized
+                )
+                X_test, y_test, _ = self.session.build_dataset(
+                    test_records, use_normalized=use_normalized
+                )
+
+            self.console.print("[cyan]Evaluating splits...[/cyan]")
+            train_m = model.evaluate(X_train, y_train)
+            val_m = model.evaluate(X_val, y_val)
+            test_m = model.evaluate(X_test, y_test)
+
+            fit_table = Table(title="Overfitting / Underfitting Check", box=box.ROUNDED)
+            fit_table.add_column("Metric", style="cyan")
+            fit_table.add_column("Train", justify="right", style="green")
+            fit_table.add_column("Validation", justify="right", style="yellow")
+            fit_table.add_column("Test", justify="right", style="blue")
+            fit_table.add_column("Train - Test", justify="right", style="dim")
+            for key in ("balanced_accuracy", "f1_macro", "recall", "precision"):
+                tr = train_m.get(key, float("nan"))
+                va = val_m.get(key, float("nan"))
+                te = test_m.get(key, float("nan"))
+                fit_table.add_row(
+                    key,
+                    f"{tr:.4f}",
+                    f"{va:.4f}",
+                    f"{te:.4f}",
+                    f"{tr - te:+.4f}",
+                )
+            self.console.print(fit_table)
+
+            gap = train_m.get("balanced_accuracy", 0) - test_m.get(
+                "balanced_accuracy", 0
+            )
+            train_bal = train_m.get("balanced_accuracy", 0)
+            if gap > 0.10:
+                self.console.print(
+                    f"[red]⚠ Possible overfitting: train-test gap = {gap:.4f}[/red]"
+                )
+            elif train_bal < 0.65:
+                self.console.print(
+                    f"[yellow]⚠ Possible underfitting: train balanced accuracy = {train_bal:.4f}[/yellow]"
+                )
+            else:
+                self.console.print(
+                    f"[green]✓ No strong overfitting/underfitting signal (gap = {gap:.4f})[/green]"
+                )
+        except Exception as exc:
+            self.console.print(f"[red]✗ Fit check failed: {exc}[/red]")
+
     # ------------------------------------------------------------------
     # Model selection and loading
     # ------------------------------------------------------------------
 
     def _select_and_load_model(self):
         """Prompt user to pick a saved model, instantiate its class, and load weights."""
-        model_files = sorted(MODELS_DIR.glob("*.json"))
+        model_files = sorted(MODELS_DIR.glob("**/*.json"))
         if not model_files:
             self.console.print(f"[red]✗ No saved models found in {MODELS_DIR}[/red]")
             return None
@@ -100,7 +211,7 @@ class InferenceManager:
                 continue
             label = f"{jf.stem}  [{meta.get('model', '?')}]"
             choices.append(questionary.Choice(label, value=jf.stem))
-            meta_map[jf.stem] = meta
+            meta_map[jf.stem] = (meta, jf.parent)
 
         if not choices:
             self.console.print("[red]✗ No valid model metadata files found.[/red]")
@@ -112,13 +223,13 @@ class InferenceManager:
         if chosen_stem is None:
             return None
 
-        meta = meta_map[chosen_stem]
+        meta, model_dir = meta_map[chosen_stem]
         model = self._instantiate_model(meta)
         if model is None:
             return None
 
         ext = getattr(model, "FILE_EXTENSION", ".joblib")
-        model_path = MODELS_DIR / f"{chosen_stem}{ext}"
+        model_path = model_dir / f"{chosen_stem}{ext}"
         if not model_path.exists():
             self.console.print(f"[red]✗ Model file not found: {model_path}[/red]")
             return None
@@ -148,6 +259,9 @@ class InferenceManager:
 
         model_cls, defaults = entry
         params = {**defaults, **hyperparams}
+        # Don't forward a saved device string — let the model auto-detect
+        # (e.g. a model trained on CUDA should still load on a CPU-only machine)
+        params.pop("device", None)
         valid_params = set(inspect.signature(model_cls.__init__).parameters) - {"self"}
         try:
             model = model_cls(**{k: v for k, v in params.items() if k in valid_params})
@@ -177,16 +291,15 @@ class InferenceManager:
         if not records:
             raise ValueError("No processed files found in data/processed/.")
 
-        chosen = questionary.select(
+        choice_map = {
+            f"{r['name']}  ({r['n_samples']} samples)": r["name"] for r in records
+        }
+        chosen_label = questionary.autocomplete(
             "Select a record for inference:",
-            choices=[
-                questionary.Choice(
-                    f"{r['name']}  ({r['n_samples']} samples)", value=r["name"]
-                )
-                for r in records
-            ],
+            choices=list(choice_map.keys()),
             style=self.style,
         ).ask()
+        chosen = choice_map.get(chosen_label) if chosen_label else None
         if chosen is None:
             raise RuntimeError("No record selected.")
 
@@ -209,21 +322,22 @@ class InferenceManager:
         if not records:
             raise ValueError("No feature files found. Run 'Extract features' first.")
 
-        chosen = questionary.select(
+        choice_map = {
+            f"{r['name']}  ({r['n_windows']} windows)": r["name"] for r in records
+        }
+        chosen_label = questionary.autocomplete(
             "Select a record for inference:",
-            choices=[
-                questionary.Choice(
-                    f"{r['name']}  ({r['n_windows']} windows)", value=r["name"]
-                )
-                for r in records
-            ],
+            choices=list(choice_map.keys()),
             style=self.style,
         ).ask()
+        chosen = choice_map.get(chosen_label) if chosen_label else None
         if chosen is None:
             raise RuntimeError("No record selected.")
 
         record_meta = next(r for r in records if r["name"] == chosen)
-        use_normalized = record_meta["has_normalized"]
+        use_normalized = record_meta["has_normalized"] and meta.get(
+            "hyperparameters", {}
+        ).get("use_normalized", True)
         suffix = (
             "_features_normalized.parquet" if use_normalized else "_features.parquet"
         )
@@ -462,16 +576,16 @@ class InferenceManager:
         pred_stats: dict,
         gt_stats: dict | None,
     ) -> None:
-        """Plot SaO2 with split predicted events and (optionally) split ground-truth events."""
+        """Plot SpO2 with split predicted events and (optionally) split ground-truth events."""
         time_h = df["time_s"].values / 3600.0
         sao2 = df["sao2_percent"].values
 
         fig, ax = plt.subplots(figsize=(14, 4))
         ax.plot(
-            time_h, sao2, color="#4a9eda", linewidth=0.7, zorder=3, label="SaO₂ (%)"
+            time_h, sao2, color="#4a9eda", linewidth=0.7, zorder=3, label="SpO₂ (%)"
         )
 
-        legend_patches = [mpatches.Patch(color="#4a9eda", label="SaO₂ (%)")]
+        legend_patches = [mpatches.Patch(color="#4a9eda", label="SpO₂ (%)")]
 
         if gt_stats is not None:
             self._shade_event_list(ax, gt_stats["events"], color="#5cb85c", alpha=0.35)
@@ -492,10 +606,11 @@ class InferenceManager:
             )
         )
 
-        ax.set_xlabel("Time (hours)")
-        ax.set_ylabel("SaO₂ (%)")
-        ax.set_title(f"SaO₂ Signal — {record_name}")
-        ax.legend(handles=legend_patches, loc="lower right")
+        ax.set_xlabel("Time (hours)", fontsize=16)
+        ax.set_ylabel("SpO₂ (%)", fontsize=16)
+        ax.set_title(f"SpO₂ Signal — {record_name}", fontsize=18)
+        ax.legend(handles=legend_patches, loc="lower right", fontsize=14)
+        ax.tick_params(axis="both", labelsize=14)
         ax.set_xlim(time_h[0], time_h[-1])
         plt.tight_layout()
         plt.show()

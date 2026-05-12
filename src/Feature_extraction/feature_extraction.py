@@ -25,7 +25,7 @@ def extract_features(
     training: bool = False,
 ) -> pd.DataFrame:
     """
-    Extracts features from the SaO2 signal in the given DataFrame.
+    Extracts features from the SpO2 signal in the given DataFrame.
     Utilized a sliding window approach to compute features for each segment of the signal.
 
     Args:
@@ -36,15 +36,15 @@ def extract_features(
 
     Returns:
         DataFrame containing the extracted features.
-            - mean_sao2: Mean of SaO2 values in the window.
-            - std_sao2: Standard deviation of SaO2 values in the window.
-            - skew_sao2: Skewness of SaO2 values in the window.
-            - min_sao2: Minimum SaO2 value in the window.
-            - kurtosis_sao2: Kurtosis of SaO2 values in the window.
-            - o2_sat_>96: Proportion of SaO2 values > 96% in the extended window.
-            - o2_sat_90_96: Proportion of SaO2 values between 90% and 96% in the extended window.
-            - o2_sat_80_90: Proportion of SaO2 values between 80% and 90% in the extended window.
-            - o2_sat_<80: Proportion of SaO2 values < 80% in the extended window.
+            - mean_sao2: Mean of SpO2 values in the window.
+            - std_sao2: Standard deviation of SpO2 values in the window.
+            - skew_sao2: Skewness of SpO2 values in the window.
+            - min_sao2: Minimum SpO2 value in the window.
+            - kurtosis_sao2: Kurtosis of SpO2 values in the window.
+            - o2_sat_>96: Proportion of SpO2 values > 96% in the extended window.
+            - o2_sat_90_96: Proportion of SpO2 values between 90% and 96% in the extended window.
+            - o2_sat_80_90: Proportion of SpO2 values between 80% and 90% in the extended window.
+            - o2_sat_<80: Proportion of SpO2 values < 80% in the extended window.
             - apnea_event (if training=True): Binary label indicating presence of apnea/hypopnea event in the window.
     """
     stepSize = int(windowSize * (1 - overlap))

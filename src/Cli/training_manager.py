@@ -158,7 +158,7 @@ class TrainingManager:
         is_deep = getattr(model, "FILE_EXTENSION", ".joblib") == ".pt"
 
         if is_deep:
-            # ── Deep model path: raw SaO2 windows ────────────────────────
+            # ── Deep model path: raw SpO2 windows ────────────────────────
             all_records = self.session.find_records_with_processed_data()
             if not all_records:
                 self.console.print(
@@ -282,6 +282,8 @@ class TrainingManager:
             ).ask()
 
             if model_name:
+                if not is_deep:
+                    hyperparams["use_normalized"] = use_normalized
                 self.session.save_model(
                     model,
                     model_name,

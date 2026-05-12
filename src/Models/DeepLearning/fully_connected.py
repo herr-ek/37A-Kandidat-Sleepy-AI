@@ -37,7 +37,7 @@ class _FCNet(nn.Module):
 
 
 class FullyConnected(IModel):
-    """Fully-connected (MLP) network for apnea classification on raw SaO2 windows.
+    """Fully-connected (MLP) network for apnea classification on raw SpO2 windows.
 
     Each window of length ``window_size`` is fed as a flat feature vector.
     Window length must match the ``window_size`` used when building the dataset.

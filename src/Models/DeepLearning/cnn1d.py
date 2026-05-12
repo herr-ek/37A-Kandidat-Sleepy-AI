@@ -47,7 +47,7 @@ class _CNN1DNet(nn.Module):
 
 
 class CNN1D(IModel):
-    """1-D CNN for apnea classification on raw SaO2 windows.
+    """1-D CNN for apnea classification on raw SpO2 windows.
 
     Unlike the classical models, this model is trained on raw sliding-window
     signal data rather than hand-crafted features. Window length must match

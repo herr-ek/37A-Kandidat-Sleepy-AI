@@ -197,7 +197,7 @@ class TrainingSession:
         window_size: int = 60,
         step_size: int | None = None,
     ) -> tuple[np.ndarray, np.ndarray | None]:
-        """Build a dataset of raw SaO2 windows from processed parquet files.
+        """Build a dataset of raw SpO2 windows from processed parquet files.
 
         Args:
             selected_records: Record names to include.
