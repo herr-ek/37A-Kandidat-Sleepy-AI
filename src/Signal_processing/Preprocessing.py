@@ -5,7 +5,7 @@ import numpy as np
 import wfdb
 from numpy.typing import ArrayLike
 
-# SaO2 ARTIFACT REMOVAL (4 steps: remove impossible values, remove spikes, interpolate, median filter)
+# SpO2 ARTIFACT REMOVAL (4 steps: remove impossible values, remove spikes, interpolate, median filter)
 
 
 def preproccess_signal(signal: ArrayLike) -> np.ndarray:
@@ -51,7 +51,7 @@ def get_respiratory_events(ann):
 def visualize_preprocessed_signal(
     signal: np.ndarray, ann: wfdb.Annotation, fs: int = 200
 ):
-    """Visualizes the cleaned SaO2 signal with respiratory events marked."""
+    """Visualizes the cleaned SpO2 signal with respiratory events marked."""
 
     clean_signal = preproccess_signal(signal)
 
@@ -95,14 +95,14 @@ def visualize_preprocessed_signal(
 
     plt.figure(figsize=(12, 5))
 
-    plt.plot(t, data_raw, label="Raw SaO₂ (Removed Artifacts)", alpha=0.4)
-    plt.plot(t, data_clean, label="Cleaned SaO₂", linewidth=2)
+    plt.plot(t, data_raw, label="Raw SpO₂ (Removed Artifacts)", alpha=0.4)
+    plt.plot(t, data_clean, label="Cleaned SpO₂", linewidth=2)
 
     for ev in events_in_window:
         plt.axvline(ev / fs, color="red", linestyle="--", alpha=0.6)
 
     plt.xlabel("Time (s)")
-    plt.ylabel("SaO₂ (%)")
+    plt.ylabel("SpO₂ (%)")
     plt.title("Apnea-related events (Artifact Removal)")
     plt.legend()
     plt.tight_layout()

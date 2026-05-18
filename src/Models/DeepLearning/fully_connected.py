@@ -1,12 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import (
-    accuracy_score,
-    balanced_accuracy_score,
-    f1_score,
-    recall_score,
-)
+from sklearn.metrics import balanced_accuracy_score, f1_score, precision_score
 from sklearn.utils.class_weight import compute_class_weight
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
@@ -38,11 +33,11 @@ class _FCNet(nn.Module):
         self.net = nn.Sequential(*layers)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x).squeeze(1)  # (B,)
+        return self.net(x).squeeze(1)
 
 
 class FullyConnected(IModel):
-    """Fully-connected (MLP) network for apnea classification on raw SaO2 windows.
+    """Fully-connected (MLP) network for apnea classification on raw SpO2 windows.
 
     Each window of length ``window_size`` is fed as a flat feature vector.
     Window length must match the ``window_size`` used when building the dataset.
@@ -165,7 +160,9 @@ class FullyConnected(IModel):
 
             # Per-epoch evaluation on the held-out validation split (batched)
             val_pred = self._infer_batched(X_val_t)
-            val_ba = balanced_accuracy_score(y_val, val_pred)
+            val_precision = precision_score(
+                y_val, val_pred, average="macro", zero_division=0
+            )
             val_f1 = f1_score(y_val, val_pred, average="macro", zero_division=0)
             self.net.train()
 
@@ -173,14 +170,14 @@ class FullyConnected(IModel):
                 print(
                     f"  Epoch {epoch + 1:>{len(str(self.num_epochs))}}/{self.num_epochs}"
                     f"  loss={avg_loss:.4f}"
-                    f"  bal_acc={val_ba:.3f}"
+                    f"  precision={val_precision:.3f}"
                     f"  f1={val_f1:.3f}"
                 )
 
             if self.show_progress:
                 epoch_bar.set_postfix(
                     loss=f"{avg_loss:.4f}",
-                    bal_acc=f"{val_ba:.3f}",
+                    precision=f"{val_precision:.3f}",
                     f1=f"{val_f1:.3f}",
                 )
 
@@ -220,7 +217,7 @@ class FullyConnected(IModel):
         )
 
     def load(self, file_path: str) -> "FullyConnected":
-        ckpt = torch.load(file_path, map_location=self.device)
+        ckpt = torch.load(file_path, map_location=self.device, weights_only=False)
         self.window_size = ckpt["window_size"]
         self.hidden_sizes = ckpt["hidden_sizes"]
         self.dropout = ckpt["dropout"]

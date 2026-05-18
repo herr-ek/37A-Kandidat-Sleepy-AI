@@ -41,7 +41,7 @@ class _RNNNet(nn.Module):
 
 
 class RNN(IModel):
-    """Vanilla RNN for apnea classification on raw SaO2 windows.
+    """Vanilla RNN for apnea classification on raw SpO2 windows.
 
     Each window of length ``window_size`` is treated as a sequence of
     scalar observations fed to the RNN one time-step at a time.
@@ -228,7 +228,7 @@ class RNN(IModel):
         )
 
     def load(self, file_path: str) -> "RNN":
-        ckpt = torch.load(file_path, map_location=self.device)
+        ckpt = torch.load(file_path, map_location=self.device, weights_only=False)
         self.window_size = ckpt["window_size"]
         self.hidden_size = ckpt["hidden_size"]
         self.num_layers = ckpt["num_layers"]

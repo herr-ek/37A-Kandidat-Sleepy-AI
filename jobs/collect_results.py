@@ -49,6 +49,7 @@ def collect_model_results(models_dir: Path) -> pd.DataFrame:
                 "Balanced Accuracy": evaluation.get("balanced_accuracy", None),
                 "Accuracy": evaluation.get("accuracy", None),
                 "Recall": evaluation.get("recall", None),
+                "Precision": evaluation.get("precision", None),
                 "F1 Macro": evaluation.get("f1_macro", None),
                 "TN": cm[0][0] if cm else None,
                 "FP": cm[0][1] if cm else None,
@@ -89,7 +90,7 @@ def display_results(
         df = df.sort_values(by=sort_by, ascending=ascending)
 
     # Format numeric columns to 4 decimal places
-    for col in ["Balanced Accuracy", "Accuracy", "Recall", "F1 Macro"]:
+    for col in ["Balanced Accuracy", "Accuracy", "Recall", "Precision", "F1 Macro"]:
         if col in df.columns:
             df[col] = df[col].apply(lambda x: f"{x:.4f}" if pd.notna(x) else "N/A")
 
@@ -149,6 +150,7 @@ def main():
             "Balanced Accuracy",
             "Accuracy",
             "Recall",
+            "Precision",
             "F1 Macro",
             "Model Type",
             "Model File",

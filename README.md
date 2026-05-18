@@ -134,7 +134,7 @@ python jobs\train_single.py --epochs 20 --batch-size 1024
 Useful options:
 
 - `--records tr03-0005 tr03-0146` to train on specific processed records only
-- `--window-size 60` to control the raw SaO2 window size
+- `--window-size 60` to control the raw SpO2 window size
 - `--test-size 0.2` to change the evaluation split
 - `--model-name cnn1d_3070` to control the saved checkpoint name
 - `--no-save` to do a quick smoke test without writing model files

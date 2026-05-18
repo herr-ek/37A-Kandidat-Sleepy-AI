@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from re import X
 
+from rich import box
+from rich.table import Table
 import torch
 from rich.console import Console
 
@@ -23,12 +25,12 @@ from src.Cli.config import MODELS_DIR
 from src.Cli.training import TrainingSession
 
 """
-Train a single deep learning model on the SaO2 feature files. Uses the same predefined train/test/validate split as train_single_classical.py.
+Train a single deep learning model on the SpO2 feature files. Uses the same predefined train/test/validate split as train_single_classical.py.
 params:
     --model: Which deep model to train (default: Fully Connected).
     --records: Optional whitelist of record IDs. When given, only these records are used from training_set.txt.
     --set-dist-dir: Directory containing training_set.txt and test_set.txt. Defaults to <root>/set_distribution/.
-    --window-size: Window size in samples/seconds for raw SaO2 windows (default: 60).
+    --window-size: Window size in samples/seconds for raw SpO2 windows (default: 60).
     --step-size: Stride between windows. Defaults to window_size // 2.
     --num-filters: [CNN1D] Filters in the first convolution layer (default: 16).
     --hidden-size: [CNN1D] FC layer size after conv blocks; [RNN] GRU hidden size (default: 64).
@@ -74,7 +76,7 @@ def parse_args() -> argparse.Namespace:
         "--window-size",
         type=int,
         default=60,
-        help="Window size in samples/seconds for raw SaO2 windows (default: 60).",
+        help="Window size in samples/seconds for raw SpO2 windows (default: 60).",
     )
     parser.add_argument(
         "--step-size",
@@ -233,6 +235,9 @@ def main() -> int:
             return 1
         device = "cuda"
 
+    else:
+        device = "cpu"
+
     try:
         set_dist_dir = args.set_dist_dir if args.set_dist_dir else SET_DIST_DIR
         all_records = session.find_records_with_processed_data()
@@ -271,6 +276,40 @@ def main() -> int:
         )
         session.train(model, X_train, y_train, X_val, y_val)
         metrics = session.evaluate(model, X_test, y_test)
+
+        training_metrics = model.evaluate(X_train, y_train)
+        validation_metrics = model.evaluate(X_val, y_val)
+
+        # Overfitting/underfitting check
+        fit_table = Table(title="Overfitting / Underfitting Check", box=box.ROUNDED)
+        fit_table.add_column("Metric", style="cyan")
+        fit_table.add_column("Train", justify="right", style="green")
+        fit_table.add_column("Validation", justify="right", style="yellow")
+        fit_table.add_column("Test", justify="right", style="blue")
+        fit_table.add_column("Train - Val", justify="right", style="dim")
+        for key in ("recall", "f1_macro", "precision"):
+            tr = training_metrics.get(key, float("nan"))
+            va = validation_metrics.get(key, float("nan"))
+            te = metrics.get(key, float("nan"))
+            diff = tr - va
+            diff_str = f"{diff:+.4f}"
+            fit_table.add_row(key, f"{tr:.4f}", f"{va:.4f}", f"{te:.4f}", diff_str)
+        console.print(fit_table)
+        train_bal = training_metrics.get("balanced_accuracy", 0)
+        val_bal = validation_metrics.get("balanced_accuracy", 0)
+        gap = train_bal - val_bal
+        if gap > 0.10:
+            console.print(
+                f"[red]⚠ Possible overfitting: train−val gap = {gap:.4f}[/red]"
+            )
+        elif train_bal < 0.65:
+            console.print(
+                f"[yellow]⚠ Possible underfitting: train balanced accuracy = {train_bal:.4f}[/yellow]"
+            )
+        else:
+            console.print(
+                f"[green]✓ No strong overfitting/underfitting signal (gap = {gap:.4f})[/green]"
+            )
 
         if not args.no_save:
             model_name = build_model_name(args)

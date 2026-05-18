@@ -25,11 +25,15 @@ try:
     # Try relative imports first (when run as module)
     from .batch_processor import BatchProcessor
     from .config import PROCESSED_DIR, RAW_DIR
+    from .csv_loader import CsvLoader
     from .data_display import DataDisplay
     from .data_loader import DataLoader
     from .data_processor import DataProcessor
     from .data_saver import DataSaver
     from .downloader import PhysioNetDownloader
+    from .inference_manager import InferenceManager
+    from .resampling_manager import ResamplingManager
+    from .results_browser import ResultsBrowser
     from .training_manager import TrainingManager
     from .ui import CLI_UI
     from .utils import get_questionary_style, set_custom_directory
@@ -37,11 +41,15 @@ except ImportError:
     # Fall back to absolute imports (when run as script)
     from batch_processor import BatchProcessor
     from config import PROCESSED_DIR, RAW_DIR
+    from csv_loader import CsvLoader
     from data_display import DataDisplay
     from data_loader import DataLoader
     from data_processor import DataProcessor
     from data_saver import DataSaver
     from downloader import PhysioNetDownloader
+    from inference_manager import InferenceManager
+    from resampling_manager import ResamplingManager
+    from results_browser import ResultsBrowser
     from training_manager import TrainingManager
     from ui import CLI_UI
     from utils import get_questionary_style, set_custom_directory
@@ -77,6 +85,10 @@ class SleepDataPipeline:
         self.downloader = PhysioNetDownloader(self.console)
         self.batch_processor = BatchProcessor(self.console)
         self.training_manager = TrainingManager(self.console, self.style)
+        self.inferene_manager = InferenceManager(self.console, self.style)
+        self.results_browser = ResultsBrowser(self.console, self.style)
+        self.resampling_manager = ResamplingManager(self.console, self.style)
+        self.csv_loader = CsvLoader(self.console, self.style)
 
     def run(self):
         """Main entry point for the CLI."""
@@ -113,7 +125,7 @@ class SleepDataPipeline:
         """Step 1: Choose between raw or processed data."""
         choice = self.ui.show_data_source_menu()
 
-        if choice == "exit":
+        if choice is None or choice == "exit":
             self.console.print("[yellow]Goodbye![/yellow]")
             sys.exit(0)
         elif choice == "train":
@@ -124,6 +136,29 @@ class SleepDataPipeline:
         elif choice == "generate_sets":
             self._handle_generate_sets()
             self.choose_data_source()
+            return
+        elif choice == "inference":
+            self.inferene_manager.run()
+            self.choose_data_source()
+            return
+        elif choice == "results":
+            self.results_browser.run()
+            self.choose_data_source()
+            return
+        elif choice == "resample":
+            self.resampling_manager.run()
+            self.choose_data_source()
+            return
+        elif choice == "csv":
+            result = self.csv_loader.run()
+            if result is None:
+                self.choose_data_source()
+                return
+            df, record_name = result
+            self.data_source = "csv"
+            self.mode = "single"
+            self.selected_records = [record_name]
+            self.data_loader.current_dataframe = df
             return
         elif choice == "download":
             self._handle_download()
@@ -140,6 +175,10 @@ class SleepDataPipeline:
 
     def select_records(self):
         """Step 2: Select record(s) to process."""
+        # CSV source: data is already loaded in choose_data_source — skip.
+        if self.data_source == "csv":
+            return
+
         self.ui.show_single_record_menu()
 
         # For batch raw data, ask if user wants to load from custom directory
@@ -315,6 +354,21 @@ class SleepDataPipeline:
                     )
                     self.data_saver.save_dataframe(
                         resampled_df,
+                        self.selected_records,
+                        self.data_loader.applied_operations,
+                        self.data_source,
+                    )
+
+            elif action == "trim_signal":
+                df = self.data_loader.load_data(
+                    self.data_source, self.selected_records, self.custom_data_dir
+                )
+                trimmed_df, success = self.data_processor.trim_signal(df)
+                if success:
+                    self.data_loader.current_dataframe = trimmed_df
+                    self.data_loader.applied_operations.append("Trimmed")
+                    self.data_saver.save_dataframe(
+                        trimmed_df,
                         self.selected_records,
                         self.data_loader.applied_operations,
                         self.data_source,

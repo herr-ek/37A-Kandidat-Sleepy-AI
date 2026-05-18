@@ -9,9 +9,9 @@ This CLI provides an interactive interface for processing and analyzing sleep ap
 - 🎨 **Color-coded output** for better readability
 - 🔧 **Extensible architecture** for easy feature additions
 - 📦 **Batch processing** for multiple records
-- ⬇️  **PhysioNet downloader** to fetch open-source sleep data
+- ⬇️ **PhysioNet downloader** to fetch open-source sleep data
 - ✨ **Feature extraction** for machine learning pipelines
-- ⏲️  **Resampling utilities** for signal time-resolution adjustment
+- ⏲️ **Resampling utilities** for signal time-resolution adjustment
 
 ## Installation
 
@@ -86,7 +86,7 @@ For batch raw mode, you can specify a custom data directory path to load recordi
 
 - **📋 Display data as DataFrame**: View the data in tabular format with column info
 - **📊 Show data statistics**: Get statistical summary and sleep event counts
-- **📈 Plot signal with annotations**: Visualize the SaO2 signal with respiratory events
+- **📈 Plot signal with annotations**: Visualize the SpO2 signal with respiratory events
 - **🧹 Preprocess signal**: Clean artifacts from the signal (removes outliers, spikes, smooths)
 - **🔍 Analyze signal for resampling**: Analyze the signal to determine optimal resampling parameters
 - **⏲️ Resample signal**: Resample to a different time resolution (e.g., 0.5s instead of 0.005s)
@@ -170,7 +170,7 @@ The CLI has been refactored into a modular, component-based architecture for bet
 
 1. **Display DataFrame**: Shows first 20 rows and column information with data types
 2. **Statistics**: Provides statistical summary including apnea/hypopnea event counts and percentages
-3. **Plot Signal**: Visualizes the SaO2 signal with respiratory events marked
+3. **Plot Signal**: Visualizes the SpO2 signal with respiratory events marked
 4. **Preprocess**: Applies artifact removal and noise reduction (removes outliers, spikes, and smooths)
 5. **Resample Analysis**: Analyzes signal to estimate optimal resampling parameters
 6. **Resample Signal**: Resamples data to a custom time resolution while preserving event annotations
@@ -193,13 +193,17 @@ When loading data, you'll see these columns:
 ## Batch Processing
 
 ### Batch Process All Records
+
 Automatically apply the default preprocessing pipeline to multiple selected records:
+
 1. Loads each record
 2. Applies preprocessing
 3. Exports to parquet in the processed folder
 
 ### Batch Resample
+
 Resample multiple recordings to the same target time resolution:
+
 - Specify target resolution once (e.g., 0.5 seconds)
 - CLI applies to all selected records
 - Useful for standardizing datasets before ML training
@@ -207,12 +211,15 @@ Resample multiple recordings to the same target time resolution:
 ## Resampling
 
 ### Analyze for Resampling
+
 Before resampling, analyze the signal to understand:
+
 - Current sampling rate characteristics
 - Recommended resampling parameters
 - Impact on event preservation
 
 ### Resample to Target Resolution
+
 - Specify desired time interval (e.g., 0.5s, 1.0s)
 - Preserves event annotations (is_apnea, is_hypopnea)
 - Reduces file size and computation time
@@ -220,6 +227,7 @@ Before resampling, analyze the signal to understand:
 ## Feature Extraction
 
 Extract machine-learning-ready features from sleep signals:
+
 - Calculates statistical features from signal segments
 - Generates features for apnea/hypopnea prediction
 - Saves features to parquet for ML pipeline integration
@@ -229,11 +237,13 @@ Extract machine-learning-ready features from sleep signals:
 The CLI can download open-source sleep apnea data from PhysioNet Challenge 2018:
 
 ### Download Options
+
 1. **Specific records**: Enter record IDs (e.g., tr03-0146, tr03-0147)
 2. **Range of records**: Specify start and end record numbers
 3. **All training data**: Download entire training set (~1.5GB)
 
 ### Download Notes
+
 - Requires `wget` to be installed and in PATH
 - Download speed is capped by PhysioNet at ~1-2 MB/s
 - Records are saved to `data/raw/`
@@ -273,10 +283,10 @@ To add a new signal processing operation:
 def your_operation(self, df: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
     """Your operation description."""
     self.console.print("\n[bold cyan]Processing...[/bold cyan]")
-    
+
     modified_df = df.copy()
     # Your implementation here
-    
+
     self.console.print("[green]✓[/green] Processing complete")
     return modified_df, True  # (dataframe, success)
 ```
@@ -352,16 +362,19 @@ pipeline.data_saver.save_dataframe(...)
 The CLI provides multiple save options:
 
 **Save Dataframe**: Save modified data (after preprocessing, resampling, etc.)
+
 - Automatically tracks operations in filename
 - Choose between processed folder or custom location
 - Retains all event annotations
 
 **Save Features**: Save extracted ML features
+
 - Generates feature matrix for model training
 - Default location: processed folder
 - Can be saved with custom naming
 
 **Export to Parquet**: Convert raw .mat/.arousal files to parquet
+
 - Initial conversion from raw format
 - Preserves all signal data and annotations
 - Enables fast loading in future sessions
@@ -369,6 +382,7 @@ The CLI provides multiple save options:
 ### DataFrame Status
 
 The CLI shows current dataframe status including:
+
 - Number of rows and columns
 - Applied operations (preprocessing, resampling, etc.)
 - Ready for visualization or export

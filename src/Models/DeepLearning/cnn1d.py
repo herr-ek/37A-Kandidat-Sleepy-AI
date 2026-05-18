@@ -47,7 +47,7 @@ class _CNN1DNet(nn.Module):
 
 
 class CNN1D(IModel):
-    """1-D CNN for apnea classification on raw SaO2 windows.
+    """1-D CNN for apnea classification on raw SpO2 windows.
 
     Unlike the classical models, this model is trained on raw sliding-window
     signal data rather than hand-crafted features. Window length must match
@@ -209,7 +209,7 @@ class CNN1D(IModel):
         )
 
     def load(self, file_path: str) -> "CNN1D":
-        ckpt = torch.load(file_path, map_location=self.device)
+        ckpt = torch.load(file_path, map_location=self.device, weights_only=False)
         self.window_size = ckpt["window_size"]
         self.num_filters = ckpt["num_filters"]
         self.hidden_size = ckpt["hidden_size"]

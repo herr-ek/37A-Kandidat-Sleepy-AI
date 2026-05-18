@@ -25,7 +25,7 @@ def extract_features(
     training: bool = False,
 ) -> pd.DataFrame:
     """
-    Extracts features from the SaO2 signal in the given DataFrame.
+    Extracts features from the SpO2 signal in the given DataFrame.
     Utilized a sliding window approach to compute features for each segment of the signal.
 
     Args:
@@ -36,15 +36,15 @@ def extract_features(
 
     Returns:
         DataFrame containing the extracted features.
-            - mean_sao2: Mean of SaO2 values in the window.
-            - std_sao2: Standard deviation of SaO2 values in the window.
-            - skew_sao2: Skewness of SaO2 values in the window.
-            - min_sao2: Minimum SaO2 value in the window.
-            - kurtosis_sao2: Kurtosis of SaO2 values in the window.
-            - o2_sat_>96: Proportion of SaO2 values > 96% in the extended window.
-            - o2_sat_90_96: Proportion of SaO2 values between 90% and 96% in the extended window.
-            - o2_sat_80_90: Proportion of SaO2 values between 80% and 90% in the extended window.
-            - o2_sat_<80: Proportion of SaO2 values < 80% in the extended window.
+            - mean_sao2: Mean of SpO2 values in the window.
+            - std_sao2: Standard deviation of SpO2 values in the window.
+            - skew_sao2: Skewness of SpO2 values in the window.
+            - min_sao2: Minimum SpO2 value in the window.
+            - kurtosis_sao2: Kurtosis of SpO2 values in the window.
+            - o2_sat_>96: Proportion of SpO2 values > 96% in the extended window.
+            - o2_sat_90_96: Proportion of SpO2 values between 90% and 96% in the extended window.
+            - o2_sat_80_90: Proportion of SpO2 values between 80% and 90% in the extended window.
+            - o2_sat_<80: Proportion of SpO2 values < 80% in the extended window.
             - apnea_event (if training=True): Binary label indicating presence of apnea/hypopnea event in the window.
     """
     stepSize = int(windowSize * (1 - overlap))
@@ -54,7 +54,7 @@ def extract_features(
     # Extract numpy arrays once — avoids repeated DataFrame slicing in the loop
     sao2 = data["sao2_percent"].values
     time = data["time_s"].values
-    if training:
+    if training and "is_apnea" in data.columns and "is_hypopnea" in data.columns:
         is_apnea = data["is_apnea"].values
         is_hypopnea = data["is_hypopnea"].values
 
@@ -76,7 +76,7 @@ def extract_features(
             "o2_sat_80_90": ((w_ext < 90) & (w_ext >= 80)).sum() / extended_window_size,
             "o2_sat_<80": (w_ext < 80).sum() / extended_window_size,
         }
-        if training:
+        if training and "is_apnea" in data.columns and "is_hypopnea" in data.columns:
             a = is_apnea[i : i + windowSize]
             h = is_hypopnea[i : i + windowSize]
             row["apnea_event"] = (

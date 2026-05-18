@@ -129,6 +129,20 @@ def get_training_test_validate_sets() -> tuple[list[str],list[str],list[str]]:
   
   return tuple(res)
 
+def load_from_csv_to_pandas(file_record):
+    """
+    Used for reading EmotiBit data"""
+
+    if "." in file_record and not file_record.endswith(".csv"):
+        file_record = file_record.split(".")[0]
+
+    filename = (
+        file_record if file_record.endswith(".csv") else f"{file_record}.csv"
+    )
+
+    df = pd.read_csv(filename)
+
+    return df
 
 
 

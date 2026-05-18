@@ -107,6 +107,6 @@ class DataDisplay:
         """Plot the signal with annotations."""
         self.console.print("\n[bold cyan]Plotting signal...[/bold cyan]")
 
-        pl.plot_with_annotations(df, title=f"SaO2 with Annotations - {record_name}")
+        pl.plot_with_annotations(df, title=f"SpO2 with Annotations - {record_name}")
 
         self.console.print("[green]✓[/green] Plot displayed (close window to continue)")

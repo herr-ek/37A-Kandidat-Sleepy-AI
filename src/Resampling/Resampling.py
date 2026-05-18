@@ -1,7 +1,8 @@
-import scipy.io
-import numpy as np
 import os
+
+import numpy as np
 import pandas as pd
+import scipy.io
 from numpy.typing import ArrayLike
 
 
@@ -97,7 +98,7 @@ def print_analysis_results(record, result):
     if "error" in result:
         print(f"Error: {result['error']}")
     else:
-        print(f"Analysis Results for {record}, Channel 11 (SaO2):")
+        print(f"Analysis Results for {record}, Channel 11 (SpO2):")
         print(f"  Signal duration: {result['signal_duration_seconds']:.1f} seconds")
         print(f"  Total runs detected: {result['total_runs']}")
         print(f"  Smallest run length: {result['smallest_run_length']} samples")
@@ -162,6 +163,68 @@ def resample_to_time_resolution(df: pd.DataFrame, target_resolution: float):
             resampled_df[column] = np.interp(new_time_index, df["time_s"], df[column])
 
     return resampled_df
+
+
+def resample_average(
+    df: pd.DataFrame,
+    target_resolution: float,
+    numeric_cols: list[str] | None = None,
+    binary_cols: list[str] | None = None,
+    reindex_time: bool = True,
+) -> pd.DataFrame:
+    """
+    Downsample a DataFrame by grouping rows into non-overlapping time bins and
+    averaging within each bin.
+
+    Unlike ``resample_to_time_resolution`` (which uses interpolation), this
+    function takes the **mean** of all samples that fall inside each bin, so
+    no information is fabricated between samples.  Binary/label columns are
+    majority-voted: a bin is labelled 1 if more than half its rows are 1.
+
+    Args:
+        df: Input DataFrame with a ``time_s`` column (seconds, 1-based float).
+        target_resolution: Desired bin width in seconds (e.g., 1.0 for 1 Hz).
+        numeric_cols: Columns to average.  Defaults to all non-time numeric
+            columns not in *binary_cols*.
+        binary_cols: Columns to majority-vote.  Defaults to columns whose name
+            starts with ``is_`` or ``apnea``.
+        reindex_time: If ``True`` (default), replace the aggregated ``time_s``
+            values with a clean, evenly-spaced sequence
+            ``t0, t0 + res, t0 + 2*res, …``.  Set to ``False`` to keep the
+            mean timestamp of each bin (useful when the input timestamps are
+            already irregular and you want to preserve the original offsets).
+
+    Returns:
+        Resampled DataFrame with one row per bin and a ``time_s`` column set to
+        the centre of each bin.
+    """
+    df = df.sort_values("time_s").reset_index(drop=True)
+
+    t0 = df["time_s"].iloc[0]
+    bin_indices = ((df["time_s"] - t0) / target_resolution).astype(int)
+    df = df.copy()
+    df["_bin"] = bin_indices
+
+    all_cols = [c for c in df.columns if c not in ("time_s", "_bin")]
+    if binary_cols is None:
+        binary_cols = [
+            c for c in all_cols if c.startswith("is_") or c.startswith("apnea")
+        ]
+    if numeric_cols is None:
+        numeric_cols = [c for c in all_cols if c not in binary_cols]
+
+    agg: dict[str, object] = {"time_s": "mean"}
+    for c in numeric_cols:
+        agg[c] = "mean"
+    for c in binary_cols:
+        agg[c] = lambda s: int(s.mean() >= 0.5)
+
+    result = df.groupby("_bin", sort=True).agg(agg).reset_index(drop=True)
+
+    if reindex_time:
+        result["time_s"] = 0 + np.arange(len(result)) * target_resolution
+
+    return result
 
 
 if __name__ == "__main__":

@@ -58,7 +58,7 @@ def normalize_feature_df(df: pd.DataFrame) -> pd.DataFrame:
             col != "time_s"
         ):  # Assuming 'time_s' is a time feature that should not be normalized
             if col == "mean_sao2" or col == "min_sao2":
-                # Normalize mean_sao2 and min_sao2 to [0, 1] based on expected SaO2 range (e.g., 70-100%)
+                # Normalize mean_sao2 and min_sao2 to [0, 1] based on expected SpO2 range (e.g., 70-100%)
                 normalized_df[col] = normalize_with_context(
                     df[col].to_numpy(), down=70, up=100
                 )
